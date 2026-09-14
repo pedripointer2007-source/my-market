@@ -1330,6 +1330,93 @@ body {
     cursor: pointer;
 }
 
+/* Navegacion de categorias */
+.category-nav-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px max(5%, calc((100vw - 1300px) / 2));
+    overflow-x: auto;
+    background: linear-gradient(180deg, #ffffff 0%, #f3f6fa 100%);
+    border-bottom: 1px solid #dbe3ed;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.category-nav-bar::before {
+    content: 'Explora por categoria';
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-right: 4px;
+}
+
+.cat-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 104px;
+    padding: 11px 16px;
+    border: 1px solid #d7e0eb;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.9);
+    color: #475569;
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+    cursor: pointer;
+    font-size: 0.86rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: transform 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cat-chip i {
+    color: #94a3b8;
+    font-size: 1rem;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.cat-chip::after {
+    content: '';
+    position: absolute;
+    right: 12px;
+    bottom: -1px;
+    left: 12px;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: transparent;
+}
+
+.cat-chip:hover {
+    color: #0f172a;
+    border-color: #fbbf24;
+    box-shadow: 0 8px 18px rgba(245, 158, 11, 0.14);
+    transform: translateY(-2px);
+}
+
+.cat-chip:hover i { color: #d97706; transform: scale(1.1); }
+
+.cat-chip.active {
+    background: linear-gradient(135deg, #fff7d6 0%, #fbbf24 100%);
+    border-color: #f59e0b;
+    color: #78350f;
+    box-shadow: 0 9px 20px rgba(245, 158, 11, 0.2);
+}
+
+.cat-chip.active i { color: #92400e; }
+.cat-chip.active::after { background: #b45309; }
+
+@media (max-width: 640px) {
+    .category-nav-bar { padding: 12px 16px; gap: 8px; }
+    .category-nav-bar::before { display: none; }
+    .cat-chip { min-width: 92px; padding: 10px 12px; }
+}
+
 .category-nav {
     display: flex;
     gap: 8px;

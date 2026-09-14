@@ -62,10 +62,10 @@ function renderCategoryNavbar() {
     const container = document.getElementById('category-nav-container');
     if (!container) return;
 
-    let html = `<button class="cat-chip ${currentCategoryFilter === 'all' ? 'active' : ''}" data-category="all">Todos</button>`;
+    let html = `<button class="cat-chip category-all ${currentCategoryFilter === 'all' ? 'active' : ''}" data-category="all"><i class="fa-solid fa-border-all"></i><span>Todos</span></button>`;
     categoriesList.forEach(cat => {
         const activeClass = currentCategoryFilter == cat.id ? 'active' : '';
-        html += `<button class="cat-chip ${activeClass}" data-category="${cat.id}">${escapeHtml(cat.name)}</button>`;
+        html += `<button class="cat-chip ${activeClass}" data-category="${cat.id}"><i class="fa-solid ${getCategoryIcon(cat.name)}"></i><span>${escapeHtml(cat.name)}</span></button>`;
     });
     container.innerHTML = html;
 
@@ -77,6 +77,16 @@ function renderCategoryNavbar() {
             filterAndRenderProducts();
         });
     });
+}
+
+function getCategoryIcon(categoryName) {
+    const category = String(categoryName || '').toLowerCase();
+    if (category.includes('elect')) return 'fa-mobile-screen-button';
+    if (category.includes('mueble')) return 'fa-couch';
+    if (category.includes('hogar')) return 'fa-house';
+    if (category.includes('ropa') || category.includes('moda')) return 'fa-shirt';
+    if (category.includes('veh')) return 'fa-car-side';
+    return 'fa-box-open';
 }
 
 function populateCategorySelects() {
