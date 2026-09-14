@@ -119,75 +119,93 @@
         </div>
     </div>
 
-    <!-- Modal Vender / Publicar Producto -->
-    <div class="modal" id="sell-modal" aria-hidden="true">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="sell-modal-title">Publicar producto</h3>
-                <button class="close-sidebar-btn" type="button" data-close-modal="sell-modal">&times;</button>
+   <!-- Modal Vender / Publicar Producto -->
+<div class="modal" id="sell-modal" aria-hidden="true">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="sell-modal-title">Publicar producto</h3>
+            <button class="close-sidebar-btn" type="button" data-close-modal="sell-modal">&times;</button>
+        </div>
+        <form id="sell-form">
+            <input type="hidden" id="product-id-hidden">
+            <div class="form-group">
+                <label for="product-title">Nombre del producto</label>
+                <input id="product-title" type="text" required maxlength="120">
             </div>
-            <form id="sell-form">
-                <input type="hidden" id="product-id-hidden">
-                <div class="form-group">
-                    <label for="product-title">Nombre del producto</label>
-                    <input id="product-title" type="text" required maxlength="120">
-                </div>
-                <div class="form-group">
-                    <label for="product-category">Categoría</label>
-                    <select id="product-category" required></select>
-                </div>
-                <div class="form-group">
-                    <label for="product-price">Precio</label>
-                    <input id="product-price" type="number" min="0" step="0.01" required>
-                </div>
-                <div class="form-group">
-                    <label for="product-currency">Moneda</label>
-                    <select id="product-currency">
-                        <option value="NIO">NIO</option>
-                        <option value="USD">USD</option>
+            <div class="form-group">
+                <label for="product-category">Categoría</label>
+                <select id="product-category" required></select>
+            </div>
+            <div class="form-group">
+                <label for="product-price">Precio (ej. 1,250.50)</label>
+                <!-- Cambiado a text para permitir comas y puntos de separación claros -->
+                <input id="product-price" type="text" required placeholder="0,000.00">
+            </div>
+            <div class="form-group">
+                <label for="product-currency">Moneda</label>
+                <select id="product-currency">
+                    <option value="NIO">NIO</option>
+                    <option value="USD">USD</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="product-stock">Unidades disponibles (Stock)</label>
+                <input id="product-stock" type="number" min="1" value="1" required>
+            </div>
+            <div class="form-group">
+                <label for="product-status">Estado de disponibilidad</label>
+                <select id="product-status">
+                    <option value="active">Disponible / Activo</option>
+                    <option value="paused">Pausado</option>
+                    <option value="sold_out">Agotado</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="product-condition">Condición</label>
+                <select id="product-condition" required>
+                    <option value="Nuevo">Nuevo</option>
+                    <option value="Seminuevo">Seminuevo</option>
+                    <option value="Usado" selected>Usado</option>
+                    <option value="Reacondicionado">Reacondicionado</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="product-location">Ubicación</label>
+                <input id="product-location" type="text" required>
+            </div>
+            
+            <!-- Selector de país y teléfono automático -->
+            <div class="form-group">
+                <label for="product-phone">Teléfono / WhatsApp de contacto</label>
+                <div class="phone-input-container" style="display: flex; gap: 8px;">
+                    <select id="country-code-select" style="width: 130px;">
+                        <option value="+505" selected>🇳🇮 +505</option>
+                        <option value="+506">🇨🇷 +506</option>
+                        <option value="+504">🇭🇳 +504</option>
+                        <option value="+503">🇸🇻 +503</option>
+                        <option value="+502">🇬🇹 +502</option>
+                        <option value="+507">🇵🇦 +507</option>
+                        <option value="+1">🇺🇸 +1</option>
                     </select>
+                    <input id="product-phone" type="tel" required placeholder="8888 8888" style="flex: 1;">
                 </div>
-                <div class="form-group">
-                    <label for="product-stock">Unidades disponibles (Stock)</label>
-                    <input id="product-stock" type="number" min="1" value="1" required>
-                </div>
-                <div class="form-group">
-                    <label for="product-status">Estado de disponibilidad</label>
-                    <select id="product-status">
-                        <option value="active">Disponible / Activo</option>
-                        <option value="paused">Pausado</option>
-                        <option value="sold_out">Agotado</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="product-condition">Condición</label>
-                    <select id="product-condition" required>
-                        <option value="Nuevo">Nuevo</option>
-                        <option value="Seminuevo">Seminuevo</option>
-                        <option value="Usado" selected>Usado</option>
-                        <option value="Reacondicionado">Reacondicionado</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="product-location">Ubicación</label>
-                    <input id="product-location" type="text" required>
-                </div>
-                <div class="form-group">
-                    <label for="product-phone">Teléfono / WhatsApp de contacto</label>
-                    <input id="product-phone" type="tel" required placeholder="+505 8888 8888">
-                </div>
-                <div class="form-group">
-                    <label for="product-image">Imagen del producto</label>
-                    <input id="product-image" type="file" accept="image/*">
+            </div>
+
+            <div class="form-group">
+                <label for="product-image">Imagen del producto</label>
+                <input id="product-image" type="file" accept="image/*">
+                <!-- Contenedor con perspectiva profesional mejorada -->
+                <div class="preview-container-pro">
                     <img id="product-image-preview" class="upload-preview hidden" alt="Vista previa">
                 </div>
-                <div class="form-actions">
-                    <button class="pay-btn" type="submit" id="save-product-btn">Guardar producto</button>
-                    <button class="secondary-btn" type="button" data-close-modal="sell-modal">Cancelar</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="form-actions">
+                <button class="pay-btn" type="submit" id="save-product-btn">Guardar producto</button>
+                <button class="secondary-btn" type="button" data-close-modal="sell-modal">Cancelar</button>
+            </div>
+        </form>
     </div>
+</div>
 
     <!-- Modal Perfil de Usuario -->
     <div class="modal" id="profile-modal" aria-hidden="true">

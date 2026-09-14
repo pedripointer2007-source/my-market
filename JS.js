@@ -886,3 +886,115 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+// ==========================================
+// UTILIDAD DE FORMATEO DE PRECIOS (Comas y Puntos)
+// ==========================================
+function formatearPrecioInput(inputElement) {
+  inputElement.addEventListener('input', (e) => {
+    let value = e.target.value.replace(/[^\d]/g, '');
+    if (!value) {
+      e.target.value = '';
+      return;
+    }
+    // Convertir a número con decimales implícitos (últimos 2 dígitos como centavos)
+    let num = Number(value) / 100;
+    e.target.value = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  });
+}
+
+function limpiarPrecioANumero(valorStr) {
+  if (!valorStr) return 0;
+  // Remover comas y convertir a float limpio para la BD
+  const limpio = String(valorStr).replace(/,/g, '');
+  return parseFloat(limpio) || 0;
+}
+
+// Aplicar al input de precio cuando el DOM cargue
+document.addEventListener('DOMContentLoaded', () => {
+  const priceInput = document.getElementById('product-price');
+  if (priceInput) {
+    formatearPrecioInput(priceInput);
+  }
+});
+
+// ==========================================
+// MODIFICACIÓN EN PUBLICAR PRODUCTO (Teléfono y Precio)
+// ==========================================
+document.getElementById('sell-form')?.addEventListener('submit', event => {
+  event.preventDefault();
+  const productId = document.getElementById('product-id-hidden').value;
+  
+  // Unir código de país seleccionado con el número ingresado
+  const countryCode = document.getElementById('country-code-select').value;
+  const rawPhone = document.getElementById('product-phone').value.trim();
+  // Evitar duplicar el prefijo si el usuario ya lo escribió por error
+  const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `${countryCode} ${rawPhone}`;
+
+  // Obtener precio limpio procesado por comas/puntos
+  const rawPriceValue = document.getElementById('product-price').value;
+  const numericPrice = limpiarPrecioANumero(rawPriceValue);
+
+  publicarProducto({
+    title: document.getElementById('product-title').value.trim(),
+    category_id: Number(document.getElementById('product-category').value),
+    price: numericPrice,
+    currency: document.getElementById('product-currency').value,
+    stock: Number(document.getElementById('product-stock').value),
+    status: document.getElementById('product-status').value,
+    condition_type: document.getElementById('product-condition').value,
+    location: document.getElementById('product-location').value.trim(),
+    phone: cleanPhone,
+    seller_phone: cleanPhone
+  }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
+});
+
+// ==========================================
+// MODIFICACIÓN EN ABRIR MODAL DE EDICIÓN (Cargar Teléfono y Precio)
+// ==========================================
+function abrirModalEdicion(productId) {
+  const producto = productsCache.find(product => product.id === productId);
+  if (!producto || producto.seller_id !== currentUser?.id) return;
+  
+  document.getElementById('sell-modal-title').innerText = 'Editar producto';
+  document.getElementById('product-id-hidden').value = producto.id;
+  document.getElementById('product-title').value = producto.title || '';
+  document.getElementById('product-category').value = producto.category_id || '';
+  
+  // Formatear precio actual con comas para el input de texto
+  if (producto.price) {
+    document.getElementById('product-price').value = Number(producto.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  } else {
+    document.getElementById('product-price').value = '0.00';
+  }
+
+  document.getElementById('product-currency').value = producto.currency || 'NIO';
+  document.getElementById('product-stock').value = producto.stock || 1;
+  document.getElementById('product-status').value = producto.status || 'active';
+  document.getElementById('product-condition').value = producto.condition_type || 'Usado';
+  document.getElementById('product-location').value = producto.location || '';
+  
+  // Separar código de país y número si es posible
+  const fullPhone = producto.phone || producto.seller_phone || '';
+  if (fullPhone.startsWith('+')) {
+    const spaceIndex = fullPhone.indexOf(' ');
+    if (spaceIndex > -1) {
+      const code = fullPhone.substring(0, spaceIndex);
+      const numberPart = fullPhone.substring(spaceIndex + 1);
+      document.getElementById('country-code-select').value = code;
+      document.getElementById('product-phone').value = numberPart;
+    } else {
+      document.getElementById('product-phone').value = fullPhone;
+    }
+  } else {
+    document.getElementById('product-phone').value = fullPhone;
+  }
+
+  const preview = document.getElementById('product-image-preview');
+  if (producto.image_url) { 
+    preview.src = producto.image_url; 
+    preview.classList.remove('hidden'); 
+  } else {
+    preview.classList.add('hidden');
+  }
+  mostrarModal('sell-modal');
+}
