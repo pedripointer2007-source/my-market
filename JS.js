@@ -228,20 +228,88 @@ async function cargarProductos() {
 }
 
 function agregarAlCarrito(id) {
-  if (!currentUser) { 
-    alert('Debes iniciar sesión para comprar.'); 
-    mostrarModal('login-modal'); 
-    return; 
+  if (!currentUser) {
+    alert('Debes iniciar sesión para comprar.');
+    mostrarModal('login-modal');
+    return;
   }
+  reservarUnidadYAgregar(id);
+}
+
+async function reservarUnidadYAgregar(id) {
   const producto = productsCache.find(item => item.id === id);
-  if (!producto || Number(producto.stock) < 1) return;
-  
+  if (!producto || producto.status !== 'active' || Number(producto.stock) < 1) {
+    alert('Producto sin stock o no disponible.');
+    return;
+  }
+
+  const stockActual = Number(producto.stock);
+  const { data, error } = await supabaseClient
+    .from('products')
+    .update({ stock: stockActual - 1 })
+    .eq('id', id)
+    .eq('stock', stockActual)
+    .eq('status', 'active')
+    .select('id, stock, title, price, currency, image_url')
+    .single();
+
+  if (error || !data) {
+    await cargarProductos();
+    alert('La disponibilidad cambió. Actualiza el carrito e inténtalo nuevamente.');
+    return;
+  }
+
+  producto.stock = data.stock;
   const existente = cartItems.find(item => item.id === id);
   if (existente) existente.qty += 1;
   else cartItems.push({ ...producto, qty: 1 });
-  
-  localStorage.setItem('mymarket_cart', JSON.stringify(cartItems));
-  alert('Producto agregado al carrito.');
+  guardarCarritoDelUsuario();
+  actualizarCarritoUI();
+  renderizarProductos(productsCache);
+}
+
+function guardarCarritoDelUsuario() {
+  const key = currentUser ? `mymarket_cart_${currentUser.id}` : 'mymarket_cart';
+  localStorage.setItem(key, JSON.stringify(cartItems));
+}
+
+function actualizarCarritoUI() {
+  const totalItems = cartItems.reduce((total, item) => total + Number(item.qty || 0), 0);
+  const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
+  const badge = document.getElementById('cart-count');
+  const itemsContainer = document.getElementById('cart-items-container');
+  const totalElement = document.getElementById('cart-total-val');
+  if (badge) badge.textContent = totalItems;
+  if (totalElement) totalElement.textContent = total.toFixed(2);
+  if (itemsContainer) {
+    itemsContainer.innerHTML = cartItems.length ? cartItems.map(item => `
+      <div class="cart-item">
+        <div class="cart-item-details">
+          <div class="cart-item-title">${escapeHtml(item.title)}</div>
+          <div class="cart-item-price">${item.qty} x ${escapeHtml(item.currency || 'NIO')} ${Number(item.price || 0).toFixed(2)}</div>
+        </div>
+        <button class="remove-item-btn" data-remove-cart="${item.id}">Eliminar</button>
+      </div>`).join('') : '<p>Tu carrito está vacío.</p>';
+    itemsContainer.querySelectorAll('[data-remove-cart]').forEach(button => button.addEventListener('click', () => quitarDelCarrito(Number(button.dataset.removeCart))));
+  }
+}
+
+function quitarDelCarrito(id) {
+  const item = cartItems.find(product => product.id === id);
+  if (!item) return;
+  devolverUnidadAlStock(id, item.qty);
+  cartItems = cartItems.filter(product => product.id !== id);
+  guardarCarritoDelUsuario();
+  actualizarCarritoUI();
+}
+
+async function devolverUnidadAlStock(id, cantidad) {
+  const producto = productsCache.find(item => item.id === id);
+  if (!producto) return;
+  const nuevoStock = Number(producto.stock) + Number(cantidad);
+  await supabaseClient.from('products').update({ stock: nuevoStock }).eq('id', id);
+  producto.stock = nuevoStock;
+  renderizarProductos(productsCache);
 }
 
 async function eliminarProducto(productId) {
@@ -317,12 +385,16 @@ async function cargarCategorias() {
 document.addEventListener('DOMContentLoaded', async () => {
   const sessionData = await supabaseClient.auth.getSession();
   currentUser = sessionData.data.session?.user || null;
+  cartItems = currentUser
+    ? JSON.parse(localStorage.getItem(`mymarket_cart_${currentUser.id}`) || '[]')
+    : [];
   
   if (currentUser) {
     await ensureSellerProfile();
   }
   
   actualizarSesion();
+  actualizarCarritoUI();
   await cargarCategorias();
   await cargarProductos();
 
@@ -330,7 +402,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (currentUser) {
       await supabaseClient.auth.signOut();
       currentUser = null;
+      cartItems = [];
       actualizarSesion();
+      actualizarCarritoUI();
       alert('Sesión cerrada.');
     } else {
       mostrarModal('login-modal');
@@ -348,8 +422,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('login-password').value
     );
     currentUser = (await supabaseClient.auth.getUser()).data.user;
+    cartItems = JSON.parse(localStorage.getItem(`mymarket_cart_${currentUser.id}`) || '[]');
     actualizarSesion();
+    actualizarCarritoUI();
     cerrarModal('login-modal');
+  });
+
+  document.getElementById('cart-btn')?.addEventListener('click', () => {
+    if (!currentUser) {
+      alert('Debes iniciar sesión para ver tu carrito.');
+      mostrarModal('login-modal');
+      return;
+    }
+    actualizarCarritoUI();
+    document.getElementById('cart-sidebar')?.classList.add('active');
+  });
+  document.getElementById('close-cart')?.addEventListener('click', () => document.getElementById('cart-sidebar')?.classList.remove('active'));
+  document.getElementById('checkout-btn')?.addEventListener('click', () => {
+    if (!currentUser) {
+      mostrarModal('login-modal');
+      return;
+    }
+    if (!cartItems.length) {
+      alert('Tu carrito está vacío.');
+      return;
+    }
+    mostrarModal('payment-modal');
   });
 
   document.getElementById('register-form')?.addEventListener('submit', async event => {
@@ -647,101 +745,3 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-function agregarAlCarrito(productId) {
-    // 1. Buscar el producto en tu lista/base de datos local
-    const producto = productos.find(p => p.id === productId);
-
-    if (!producto || producto.stock <= 0) {
-        mostrarToast("Producto sin stock o no encontrado");
-        return;
-    }
-
-    // 2. Verificar si ya está en el carrito
-    let itemEnCarrito = carrito.find(item => item.id === productId);
-
-    if (itemEnCarrito) {
-        if (itemEnCarrito.cantidad < producto.stock) {
-            itemEnCarrito.cantidad++;
-        } else {
-            mostrarToast("No hay más stock disponible");
-            return;
-        }
-    } else {
-        // Agregar nuevo con cantidad 1
-        carrito.push({ ...producto, cantidad: 1 });
-    }
-
-    // 3. Descontar stock temporalmente (opcional según tu lógica)
-    // producto.stock--; 
-
-    // 4. ¡Crucial! Llamar a las funciones que actualizan la interfaz
-    actualizarCarritoUI();
-}
-function actualizarCarritoUI() {
-    const cartBadge = document.querySelector('.cart-badge');
-    const cartBody = document.querySelector('.cart-sidebar-body');
-    const totalPriceEl = document.querySelector('.total-price'); // Ajusta según tu selector
-
-    // Calcular total de items
-    const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
-    
-    // Actualizar contador numérico
-    if (cartBadge) {
-        cartBadge.textContent = totalItems;
-        // Ocultar si está en 0, mostrar si hay más
-        cartBadge.style.display = totalItems > 0 ? 'inline-block' : 'none';
-    }
-
-    // Renderizar los elementos dentro del sidebar del carrito
-    if (cartBody) {
-        cartBody.innerHTML = '';
-        if (carrito.length === 0) {
-            cartBody.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Tu carrito está vacío</p>';
-        } else {
-            carrito.forEach(item => {
-                cartBody.innerHTML += `
-                    <div class="cart-item" style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center;">
-                        <div>
-                            <h4 style="font-size: 0.9rem; color: white;">${item.nombre}</h4>
-                            <span style="font-size: 0.8rem; color: var(--text-muted);">NIO ${item.precio} x ${item.cantidad}</span>
-                        </div>
-                        <button onclick="eliminarDelCarrito(${item.id})" style="background:none; border:none; color: var(--error); cursor:pointer;">X</button>
-                    </div>
-                `;
-            });
-        }
-    }
-
-    // Actualizar precio total a pagar
-    const costoTotal = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
-    if (totalPriceEl) {
-        totalPriceEl.textContent = `NIO ${costoTotal.toFixed(2)}`;
-    }
-}
-function cerrarSesion() {
-    // 1. Limpiar los datos de sesión del almacenamiento local
-    localStorage.removeItem("usuarioLogueado"); // Reemplaza por la clave que uses para la sesión
-    
-    // Opcional: limpiar también el carrito si deseas que se vacíe al salir
-    localStorage.removeItem("carrito"); 
-
-    // 2. Cambiar inmediatamente el texto y el comportamiento del botón en la interfaz
-    const btnAuth = document.querySelector(".login-btn"); // Ajusta el selector si usas un ID (ej: #loginBtn)
-    if (btnAuth) {
-        btnAuth.textContent = "Iniciar sesión";
-        // Remover el evento anterior de cerrar sesión y asignar el que abre el modal de login
-        btnAuth.onclick = function() {
-            abrirModalLogin(); // La función que muestra tu modal de inicio de sesión
-        };
-    }
-
-    // 3. Opcional: Actualizar el contador del carrito a 0 de forma visual
-    const cartBadge = document.querySelector('.cart-badge');
-    if (cartBadge) {
-        cartBadge.textContent = '0';
-        cartBadge.style.display = 'none';
-    }
-
-    // 4. Mostrar un mensaje de notificación si tienes una función para ello
-    mostrarToast("Sesión cerrada correctamente");
-}
