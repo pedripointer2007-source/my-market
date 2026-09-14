@@ -39,7 +39,12 @@ async function fetchProducts() {
     const container = document.getElementById('products-container');
     container.innerHTML = '<p>Cargando productos...</p>';
 
-    const { data, error } = await supabaseClient.from('products').select('*').eq('status', 'active');
+    let { data, error } = await supabaseClient.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false });
+    if (error && error.message.includes('created_at')) {
+        const fallback = await supabaseClient.from('products').select('*').eq('status', 'active');
+        data = fallback.data;
+        error = fallback.error;
+    }
 
     if (error) {
         showToast('Error al cargar productos', 'error');
@@ -65,7 +70,7 @@ function renderProducts(products) {
         div.className = 'product-card';
         div.innerHTML = `
             <div class="product-image-wrapper">
-                <img src="${escapeHtml(prod.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(prod.title || 'Producto')}">
+                <img src="${escapeHtml(prod.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(prod.title || 'Producto')}" onclick="openProductPreview(${prod.id})">
             </div>
             <h3 class="product-title">${escapeHtml(prod.title || 'Producto sin nombre')}</h3>
             <div class="product-meta">
@@ -74,6 +79,7 @@ function renderProducts(products) {
             </div>
             <div class="product-actions">
                 <button class="btn-primary" onclick="addToCart(${prod.id})">Agregar al carrito</button>
+                <button class="btn-secondary" onclick="openProductPreview(${prod.id})">Ver producto</button>
             </div>
         `;
         container.appendChild(div);
@@ -214,6 +220,7 @@ function setupInterface() {
     document.getElementById('show-login-btn').addEventListener('click', showLoginForm);
     document.getElementById('sell-form').addEventListener('submit', publishProduct);
     document.getElementById('payment-form').addEventListener('submit', completeOrder);
+    document.getElementById('product-image').addEventListener('change', previewUploadedImage);
 }
 
 function filterProducts() {
@@ -277,24 +284,126 @@ async function publishProduct(event) {
         return;
     }
 
+    const imageFile = document.getElementById('product-image').files[0];
+    const phone = document.getElementById('product-phone').value.trim();
+    if (!imageFile || !phone) {
+        showToast('La imagen y el teléfono son obligatorios', 'error');
+        return;
+    }
+    if (!imageFile.type.startsWith('image/')) {
+        showToast('Selecciona un archivo de imagen válido', 'error');
+        return;
+    }
+    if (imageFile.size > 5 * 1024 * 1024) {
+        showToast('La imagen no puede superar 5 MB', 'error');
+        return;
+    }
+
+    let imageUrl;
+    try {
+        imageUrl = await compressImageToDataUrl(imageFile);
+    } catch (error) {
+        showToast(error.message, 'error');
+        return;
+    }
+
     const product = {
         title: document.getElementById('product-title').value.trim(),
         price: Number(document.getElementById('product-price').value),
         currency: document.getElementById('product-currency').value,
         condition_type: document.getElementById('product-condition').value.trim(),
         location: document.getElementById('product-location').value.trim(),
-        image_url: document.getElementById('product-image').value.trim() || null,
+        image_url: imageUrl,
+        seller_phone: phone,
+        seller_id: currentUser.id,
         status: 'active'
     };
-    const { error } = await supabaseClient.from('products').insert(product);
+    const { error } = await supabaseClient.from('products').insert([product]);
     if (error) {
-        showToast(`No se pudo publicar: ${error.message}`, 'error');
+        console.error('Error al publicar producto:', error);
+        const detail = error.code ? ` [${error.code}]` : '';
+        let hint = '';
+        if (error.code === '42703') hint = ' Revisa que existan seller_phone, seller_id e image_url en products.';
+        if (error.code === '42501') hint = ' Revisa las políticas INSERT de la tabla products en Supabase.';
+        if (error.code === '22001') hint = ' image_url es demasiado corto; cambia esa columna a tipo text.';
+        showToast(`No se pudo publicar${detail}: ${error.message}.${hint}`, 'error');
         return;
     }
     document.getElementById('sell-form').reset();
+    document.getElementById('product-image-preview').classList.add('hidden');
+    document.getElementById('product-image-preview').removeAttribute('src');
     closeModal('sell-modal');
     showToast('Producto publicado correctamente');
     await fetchProducts();
+}
+
+function previewUploadedImage(event) {
+    const file = event.target.files[0];
+    const preview = document.getElementById('product-image-preview');
+    if (!file) {
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+        return;
+    }
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove('hidden');
+}
+
+function sanitizeFileName(fileName) {
+    return fileName.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
+}
+
+function compressImageToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        const reader = new FileReader();
+        reader.onload = () => { image.src = reader.result; };
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+        image.onload = () => {
+            const maxSize = 320;
+            const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.45));
+        };
+        image.onerror = () => reject(new Error('El archivo no contiene una imagen válida.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function openProductPreview(productId) {
+    const product = productsList.find(item => item.id === productId);
+    if (!product) return;
+
+    const phone = normalizePhone(product.seller_phone || product.phone || '');
+    const whatsappUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(`Hola, estoy interesado en tu producto: ${product.title}`)}` : '';
+    document.getElementById('product-preview-content').innerHTML = `
+        <div class="product-detail-body">
+            <div class="detail-preview"><img src="${escapeHtml(product.image_url || 'https://via.placeholder.com/500')}" alt="${escapeHtml(product.title || 'Producto')}"></div>
+            <div class="detail-info">
+                <h4>${escapeHtml(product.title || 'Producto')}</h4>
+                <p>${escapeHtml(product.description || 'Producto disponible en MyMarket.')}</p>
+                <div class="detail-grid">
+                    <div><strong>Precio</strong><br>${escapeHtml(product.currency || 'NIO')} ${Number(product.price || 0).toFixed(2)}</div>
+                    <div><strong>Condición</strong><br>${escapeHtml(product.condition_type || 'No especificada')}</div>
+                    <div><strong>Ubicación</strong><br>${escapeHtml(product.location || 'No especificada')}</div>
+                    <div><strong>Teléfono</strong><br>${escapeHtml(product.seller_phone || 'No disponible')}</div>
+                </div>
+                <div class="detail-contact">
+                    <span>Contacta al vendedor por WhatsApp</span>
+                    ${whatsappUrl ? `<a class="contact-btn" href="${whatsappUrl}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>` : '<span class="contact-btn inactive">Sin teléfono</span>'}
+                </div>
+            </div>
+        </div>`;
+    openModal('product-preview-modal');
+}
+
+function normalizePhone(phone) {
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.startsWith('505') ? digits : `505${digits}`;
 }
 
 function completeOrder(event) {

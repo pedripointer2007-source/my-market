@@ -136,14 +136,30 @@
                     <input id="product-location" type="text" required>
                 </div>
                 <div class="form-group">
-                    <label for="product-image">URL de imagen</label>
-                    <input id="product-image" type="url" placeholder="https://...">
+                    <label for="product-phone">Número de teléfono / WhatsApp</label>
+                    <input id="product-phone" type="tel" required inputmode="tel" pattern="[+]?[0-9 ()-]{8,20}" placeholder="+505 8888 8888">
+                </div>
+                <div class="form-group">
+                    <label for="product-image">Imagen del producto</label>
+                    <input id="product-image" type="file" accept="image/*" required>
+                    <small class="field-help">Selecciona una imagen desde tu dispositivo.</small>
+                    <img id="product-image-preview" class="upload-preview hidden" alt="Vista previa de la imagen">
                 </div>
                 <div class="form-actions">
                     <button class="pay-btn" type="submit">Publicar</button>
                     <button class="secondary-btn" type="button" data-close-modal="sell-modal">Cancelar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal" id="product-preview-modal" aria-hidden="true">
+        <div class="modal-content product-detail-content">
+            <div class="modal-header">
+                <h3>Vista previa del producto</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="product-preview-modal">&times;</button>
+            </div>
+            <div id="product-preview-content"></div>
         </div>
     </div>
 
