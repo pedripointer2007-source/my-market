@@ -237,6 +237,15 @@ function agregarAlCarrito(id) {
 }
 
 async function reservarUnidadYAgregar(id) {
+  const { data: sessionData } = await supabaseClient.auth.getSession();
+  if (!sessionData.session) {
+    currentUser = null;
+    actualizarSesion();
+    alert('Tu sesión expiró. Inicia sesión para comprar.');
+    mostrarModal('login-modal');
+    return;
+  }
+
   const producto = productsCache.find(item => item.id === id);
   if (!producto || producto.status !== 'active' || Number(producto.stock) < 1) {
     alert('Producto sin stock o no disponible.');
@@ -244,22 +253,21 @@ async function reservarUnidadYAgregar(id) {
   }
 
   const stockActual = Number(producto.stock);
-  const { data, error } = await supabaseClient
+  const { error } = await supabaseClient
     .from('products')
     .update({ stock: stockActual - 1 })
     .eq('id', id)
     .eq('stock', stockActual)
-    .eq('status', 'active')
-    .select('id, stock, title, price, currency, image_url')
-    .single();
+    .eq('status', 'active');
 
-  if (error || !data) {
+  if (error) {
+    console.error('Error reservando stock:', error);
     await cargarProductos();
-    alert('La disponibilidad cambió. Actualiza el carrito e inténtalo nuevamente.');
+    alert(`No se pudo agregar al carrito: ${error.message}`);
     return;
   }
 
-  producto.stock = data.stock;
+  producto.stock = stockActual - 1;
   const existente = cartItems.find(item => item.id === id);
   if (existente) existente.qty += 1;
   else cartItems.push({ ...producto, qty: 1 });
@@ -292,6 +300,80 @@ function actualizarCarritoUI() {
       </div>`).join('') : '<p>Tu carrito está vacío.</p>';
     itemsContainer.querySelectorAll('[data-remove-cart]').forEach(button => button.addEventListener('click', () => quitarDelCarrito(Number(button.dataset.removeCart))));
   }
+}
+
+function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const message = encodeURIComponent(`Hola ${buyerName}, recibí tu pedido de ${productTitle} en MyMarket.`);
+  return `https://wa.me/${digits}?text=${message}`;
+}
+
+async function enviarPedidoAVendedores(event) {
+  event.preventDefault();
+  if (!currentUser) {
+    alert('Debes iniciar sesión para confirmar el pedido.');
+    mostrarModal('login-modal');
+    return;
+  }
+  if (!cartItems.length) {
+    alert('Tu carrito está vacío.');
+    return;
+  }
+
+  const buyerName = document.getElementById('payment-name').value.trim();
+  const buyerPhone = document.getElementById('payment-phone').value.trim();
+  const buyerAddress = document.getElementById('payment-address').value.trim();
+  const notifications = cartItems.map(item => ({
+    seller_id: item.seller_id,
+    buyer_id: currentUser.id,
+    buyer_name: buyerName,
+    buyer_phone: buyerPhone,
+    buyer_address: buyerAddress,
+    product_id: item.id,
+    product_title: item.title,
+    quantity: Number(item.qty || 1),
+    total: Number(item.price || 0) * Number(item.qty || 1),
+    whatsapp_url: crearEnlaceWhatsApp(buyerPhone, buyerName, item.title),
+    status: 'unread'
+  }));
+
+  const { error } = await supabaseClient.from('notifications').insert(notifications);
+  if (error) {
+    console.error('Error enviando pedido a vendedores:', error);
+    for (const item of cartItems) await devolverUnidadAlStock(item.id, item.qty);
+    await cargarProductos();
+    alert(`No se pudo enviar el pedido: ${error.message}`);
+    return;
+  }
+
+  cartItems = [];
+  guardarCarritoDelUsuario();
+  actualizarCarritoUI();
+  document.getElementById('payment-form').reset();
+  document.getElementById('cart-sidebar').classList.remove('active');
+  cerrarModal('payment-modal');
+  alert('Pedido enviado. Los vendedores recibieron tus datos y podrán contactarte por WhatsApp.');
+}
+
+async function cargarNotificacionesVendedor() {
+  const list = document.getElementById('seller-notifications-list');
+  if (!list || !currentUser) return;
+  const { data, error } = await supabaseClient.from('notifications').select('*').eq('seller_id', currentUser.id).order('created_at', { ascending: false });
+  if (error) {
+    list.innerHTML = '<p>No se pudieron cargar los pedidos recibidos.</p>';
+    console.error(error);
+    return;
+  }
+  list.innerHTML = data?.length ? data.map(notification => `
+    <article class="seller-notification ${notification.status === 'unread' ? 'unread' : ''}">
+      <strong>${escapeHtml(notification.product_title)}</strong>
+      <span>${notification.quantity} unidad(es) • Total: ${Number(notification.total || 0).toFixed(2)}</span>
+      <span>Comprador: ${escapeHtml(notification.buyer_name)}</span>
+      <span>Teléfono: ${escapeHtml(notification.buyer_phone)}</span>
+      <span>Dirección: ${escapeHtml(notification.buyer_address)}</span>
+      ${notification.whatsapp_url ? `<a class="notification-whatsapp" href="${escapeHtml(notification.whatsapp_url)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Contactar por WhatsApp</a>` : ''}
+    </article>`).join('') : '<p>No hay pedidos recibidos.</p>';
 }
 
 function quitarDelCarrito(id) {
@@ -449,6 +531,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     mostrarModal('payment-modal');
   });
+  document.getElementById('payment-form')?.addEventListener('submit', enviarPedidoAVendedores);
 
   document.getElementById('register-form')?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -651,6 +734,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       mostrarModal('profile-modal');
+      await cargarNotificacionesVendedor();
     });
   }
 

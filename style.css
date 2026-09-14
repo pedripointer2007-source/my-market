@@ -578,3 +578,46 @@ body {
 .product-card .btn-secondary:hover {
     background: #ffffff;
 }
+.seller-notifications-section {
+    margin-top: 20px;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 16px;
+}
+.seller-notifications-section h4 {
+    margin-bottom: 12px;
+    color: #0f172a;
+}
+#seller-notifications-list {
+    display: grid;
+    gap: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.seller-notification {
+    display: grid;
+    gap: 5px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.84rem;
+}
+.seller-notification.unread {
+    border-left: 4px solid #f59e0b;
+    background: #fffbeb;
+}
+.seller-notification strong { color: #0f172a; }
+.notification-whatsapp {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #16a34a;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+}
