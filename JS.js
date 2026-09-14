@@ -624,58 +624,11 @@ if (avatarFileInput) {
   });
 }
 
-// ==========================================
-// ESCUCHAR CAMBIOS DE SESIÓN EN TIEMPO REAL
-// ==========================================
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
+// Un solo listener mantiene sincronizados autenticacion, botones y tarjetas.
+supabaseClient.auth.onAuthStateChange((_event, session) => {
   currentUser = session?.user || null;
-
-  // 1. Actualizar visibilidad de botones en la barra de navegación
-  const loginBtn = document.getElementById('login-btn');
-  const profileBtn = document.getElementById('profile-btn');
-  const sellBtn = document.getElementById('sell-btn');
-
-  if (currentUser) {
-    if (loginBtn) loginBtn.classList.add('hidden');
-    if (profileBtn) profileBtn.classList.remove('hidden');
-    if (sellBtn) sellBtn.style.display = 'inline-flex';
-  } else {
-    if (loginBtn) loginBtn.classList.remove('hidden');
-    if (profileBtn) profileBtn.classList.add('hidden');
-    if (sellBtn) sellBtn.style.display = 'none';
-  }
-
-  // 2. Re-renderizar los productos al instante para quitar/poner los botones de edición del dueño
-  if (typeof productsCache !== 'undefined' && productsCache.length > 0) {
-    renderizarProductos(productsCache);
-  }
-});
-// ==========================================
-// CONTROL DE SESIÓN Y VISIBILIDAD DE BOTONES
-// ==========================================
-supabaseClient.auth.onAuthStateChange(async (event, session) => {
-  currentUser = session?.user || null;
-
-  const loginBtn = document.getElementById('login-btn');
-  const profileBtn = document.getElementById('profile-btn');
-  const logoutBtn = document.getElementById('logout-btn');
-  const sellBtn = document.getElementById('sell-btn');
-
-  if (currentUser) {
-    if (loginBtn) loginBtn.classList.add('hidden');
-    if (profileBtn) profileBtn.classList.remove('hidden');
-    if (logoutBtn) logoutBtn.classList.remove('hidden');
-    if (sellBtn) sellBtn.style.display = 'inline-flex';
-  } else {
-    if (loginBtn) loginBtn.classList.remove('hidden');
-    if (profileBtn) profileBtn.classList.add('hidden');
-    if (logoutBtn) logoutBtn.classList.add('hidden');
-    if (sellBtn) sellBtn.style.display = 'none';
-  }
-
-  if (typeof productsCache !== 'undefined' && productsCache.length > 0) {
-    renderizarProductos(productsCache);
-  }
+  actualizarSesion();
+  if (typeof productsCache !== 'undefined') renderizarProductos(productsCache);
 });
 
 // Event listener para el botón de cerrar sesión
@@ -764,4 +717,31 @@ function actualizarCarritoUI() {
     if (totalPriceEl) {
         totalPriceEl.textContent = `NIO ${costoTotal.toFixed(2)}`;
     }
+}
+function cerrarSesion() {
+    // 1. Limpiar los datos de sesión del almacenamiento local
+    localStorage.removeItem("usuarioLogueado"); // Reemplaza por la clave que uses para la sesión
+    
+    // Opcional: limpiar también el carrito si deseas que se vacíe al salir
+    localStorage.removeItem("carrito"); 
+
+    // 2. Cambiar inmediatamente el texto y el comportamiento del botón en la interfaz
+    const btnAuth = document.querySelector(".login-btn"); // Ajusta el selector si usas un ID (ej: #loginBtn)
+    if (btnAuth) {
+        btnAuth.textContent = "Iniciar sesión";
+        // Remover el evento anterior de cerrar sesión y asignar el que abre el modal de login
+        btnAuth.onclick = function() {
+            abrirModalLogin(); // La función que muestra tu modal de inicio de sesión
+        };
+    }
+
+    // 3. Opcional: Actualizar el contador del carrito a 0 de forma visual
+    const cartBadge = document.querySelector('.cart-badge');
+    if (cartBadge) {
+        cartBadge.textContent = '0';
+        cartBadge.style.display = 'none';
+    }
+
+    // 4. Mostrar un mensaje de notificación si tienes una función para ello
+    mostrarToast("Sesión cerrada correctamente");
 }
