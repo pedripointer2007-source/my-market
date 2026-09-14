@@ -336,8 +336,20 @@ async function saveUserProfile(event) {
 // 7. CARRITO DE COMPRAS
 // ==========================================
 function addToCart(productId) {
+    if (!currentUser) {
+        showToast('Inicia sesión para comprar productos', 'error');
+        openModal('login-modal');
+        return;
+    }
     const product = productsList.find(p => p.id === productId);
-    if (!product || product.stock <= 0) return;
+    if (!product || product.stock <= 0 || product.status !== 'active') {
+        showToast('Este producto ya no está disponible', 'error');
+        return;
+    }
+    if (product.seller_id === currentUser.id) {
+        showToast('No puedes comprar tu propio producto', 'error');
+        return;
+    }
 
     const existingItem = cart.find(item => item.id === productId);
     const currentQtyInCart = existingItem ? existingItem.qty : 0;
@@ -402,6 +414,11 @@ function renderCart() {
 document.addEventListener('DOMContentLoaded', async () => {
     setupInterface();
     await restoreSession();
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+        currentUser = session?.user || null;
+        updateAuthUI();
+        filterAndRenderProducts();
+    });
     await fetchCategories();
     await fetchProducts();
     saveCart();
@@ -429,6 +446,11 @@ function closeModal(id) {
 
 function setupInterface() {
     document.getElementById('cart-btn').addEventListener('click', () => {
+        if (!currentUser) {
+            showToast('Inicia sesión para comprar productos', 'error');
+            openModal('login-modal');
+            return;
+        }
         cartSidebar.classList.add('active');
         renderCart();
     });
@@ -465,6 +487,12 @@ function setupInterface() {
     document.getElementById('search-input').addEventListener('input', filterAndRenderProducts);
     
     document.getElementById('checkout-btn').addEventListener('click', () => {
+        if (!currentUser) {
+            showToast('Inicia sesión para proceder al pago', 'error');
+            cartSidebar.classList.remove('active');
+            openModal('login-modal');
+            return;
+        }
         if (!cart.length) {
             showToast('Tu carrito está vacío', 'error');
             return;
@@ -607,8 +635,38 @@ function normalizePhone(phone) {
     return digits.startsWith('505') ? digits : `505${digits}`;
 }
 
-function completeOrder(event) {
+async function completeOrder(event) {
     event.preventDefault();
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError || !session) {
+        currentUser = null;
+        updateAuthUI();
+        showToast('Tu sesión expiró. Inicia sesión para continuar.', 'error');
+        closeModal('payment-modal');
+        openModal('login-modal');
+        return;
+    }
+
+    // Nunca se usan precios o stock guardados en localStorage como fuente de verdad.
+    const productIds = cart.map(item => item.id);
+    const { data: latestProducts, error } = await supabaseClient
+        .from('products')
+        .select('id, title, price, currency, stock, status')
+        .in('id', productIds);
+    if (error) {
+        showToast('No se pudo verificar la disponibilidad. Intenta nuevamente.', 'error');
+        return;
+    }
+    const unavailable = cart.find(item => {
+        const latest = latestProducts.find(product => product.id === item.id);
+        return !latest || latest.status !== 'active' || Number(latest.stock) < item.qty;
+    });
+    if (unavailable) {
+        await fetchProducts();
+        showToast('Un producto cambió de disponibilidad o stock. Revisa tu carrito.', 'error');
+        return;
+    }
+
     cart = [];
     saveCart();
     renderCart();
