@@ -226,10 +226,50 @@ function agregarAlCarrito(id) {
 let productsCache = [];
 let cartItems = JSON.parse(localStorage.getItem('mymarket_cart') || '[]');
 
+const defaultCategories = [
+  { id: 1, name: 'Electrónica' },
+  { id: 2, name: 'Muebles' },
+  { id: 3, name: 'Hogar' },
+  { id: 4, name: 'Ropa' },
+  { id: 5, name: 'Vehículos' },
+  { id: 6, name: 'Otros' }
+];
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  })[character]);
+}
+
+async function cargarCategorias() {
+  const select = document.getElementById('product-category');
+  const navigation = document.getElementById('category-nav-container');
+  if (!select) return;
+
+  let categories = defaultCategories;
+  try {
+    const { data } = await supabaseClient.from('categories').select('id, name').order('name');
+    if (data?.length) categories = data;
+  } catch (error) {
+    console.warn('Se usaran categorias locales:', error);
+  }
+
+  select.innerHTML = categories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join('');
+  select.value = String(categories[0].id);
+
+  if (navigation) {
+    navigation.innerHTML = `<button class="cat-chip active" data-category="all"><i class="fa-solid fa-border-all"></i> Todos</button>`;
+    categories.forEach(category => {
+      navigation.insertAdjacentHTML('beforeend', `<button class="cat-chip" data-category="${category.id}"><i class="fa-solid fa-box-open"></i> ${escapeHtml(category.name)}</button>`);
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const session = await supabaseClient.auth.getSession();
   currentUser = session.data.session?.user || null;
   actualizarSesion();
+  await cargarCategorias();
   document.getElementById('login-btn')?.addEventListener('click', () => currentUser ? supabaseClient.auth.signOut().then(() => { currentUser = null; actualizarSesion(); }) : mostrarModal('login-modal'));
   document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => cerrarModal(button.dataset.closeModal)));
   document.getElementById('login-form')?.addEventListener('submit', async event => { event.preventDefault(); await iniciarSesion(document.getElementById('login-email').value, document.getElementById('login-password').value); currentUser = (await supabaseClient.auth.getUser()).data.user; actualizarSesion(); cerrarModal('login-modal'); });
