@@ -972,14 +972,18 @@ function abrirModalEdicion(productId) {
 }
 
 // ==========================================
-// ELIMINACIÓN DE NOTIFICACIONES (Con integración completa)
+// ELIMINACIÓN DE NOTIFICACIONES (Corregido con validación RLS de Supabase)
 // ==========================================
 async function eliminarNotificacion(notificationId, elementNode) {
     try {
+        if (!currentUser) return;
+
+        // Se agrega la condición .or() para cumplir con las políticas RLS y permitir el borrado en Supabase
         const { error } = await supabaseClient
             .from('notifications')
             .delete()
-            .eq('id', notificationId);
+            .eq('id', notificationId)
+            .or(`seller_id.eq.${currentUser.id},buyer_id.eq.${currentUser.id}`);
 
         if (error) throw error;
 
@@ -998,7 +1002,7 @@ async function eliminarNotificacion(notificationId, elementNode) {
             }, 300);
         }
         
-        // Actualizar el contador de notificaciones de la barra
+        // Actualizar de inmediato el contador de notificaciones de la barra superior
         await actualizarContadorNotificaciones();
     } catch (error) {
         console.error('Error al eliminar la notificación:', error.message);
