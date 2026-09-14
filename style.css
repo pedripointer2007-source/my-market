@@ -680,3 +680,38 @@ body {
     border-radius: 8px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.4);
 }
+.btn-delete-notification {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-delete-notification svg {
+    transition: transform 0.2s ease;
+}
+
+.btn-delete-notification:hover {
+    background: #ef4444;
+    color: #ffffff;
+    border-color: #ef4444;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-delete-notification:hover svg {
+    transform: scale(1.1);
+}
+
+.btn-delete-notification:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.2);
+}

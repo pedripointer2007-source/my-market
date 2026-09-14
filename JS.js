@@ -998,3 +998,31 @@ function abrirModalEdicion(productId) {
   }
   mostrarModal('sell-modal');
 }
+// Función para eliminar una notificación
+async function eliminarNotificacion(notificationId, elementNode) {
+    try {
+        const { error } = await supabase
+            .from('notifications')
+            .delete()
+            .eq('id', notificationId);
+
+        if (error) throw error;
+
+        // Efecto visual de desvanecimiento antes de remover del DOM
+        if (elementNode) {
+            elementNode.style.transition = 'all 0.3s ease';
+            elementNode.style.opacity = '0';
+            elementNode.style.transform = 'translateX(20px)';
+            setTimeout(() => elementNode.remove(), 300);
+        }
+    } catch (error) {
+        console.error('Error al eliminar la notificación:', error.message);
+        alert('No se pudo eliminar la notificación.');
+    }
+}
+// Ejemplo dentro de tu función que dibuja las notificaciones
+const deleteBtn = notificationElement.querySelector('.btn-delete-notification, .btn-delete-icon-only');
+
+deleteBtn.addEventListener('click', () => {
+    eliminarNotificacion(notif.id, notificationElement);
+});
