@@ -1031,26 +1031,3 @@ async function eliminarNotificacion(notificationId, elementNode) {
         alert('No se pudo eliminar la notificación.');
     }
 }
-async function cargarProductos() {
-  const { data, error } = await supabaseClient
-    .from('products')
-    puedes usar un join si tu tabla de perfiles está vinculada por seller_id:
-    .select(`
-      *,
-      profiles:seller_id (phone, full_name)
-    `)
-    .eq('status', 'active'); // o el filtro que uses
-
-  if (error) {
-    console.error('Error cargando productos:', error);
-    return;
-  }
-
-  // Mapear los datos para que el teléfono quede accesible fácilmente en el objeto del producto
-  productsCache = data.map(item => ({
-    ...item,
-    phone: item.phone || item.profiles?.phone || ''
-  }));
-
-  renderizarProductos(productsCache);
-}
