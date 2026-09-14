@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MyMarket - Tu Tienda Online Profesional</title>
+    <title>MyMarket - Catálogo y Tienda Online</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SDK de Supabase -->
@@ -19,6 +19,9 @@
             <button id="search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
         </div>
         <div class="navbar-actions">
+            <button class="login-btn hidden" id="profile-btn" aria-label="Mi Perfil">
+                <i class="fa-solid fa-id-card"></i> <span>Perfil</span>
+            </button>
             <button class="login-btn" id="login-btn" aria-label="Iniciar sesión">
                 <i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>
             </button>
@@ -29,6 +32,12 @@
         </div>
     </header>
 
+    <!-- Barra de Navegación por Categorías -->
+    <nav class="category-nav-bar" id="category-nav-container">
+        <button class="cat-chip active" data-category="all">Todos</button>
+        <!-- Las categorías se cargarán dinámicamente aquí -->
+    </nav>
+
     <div class="action-buttons-bar">
         <button class="action-btn action-sell" id="sell-btn">
             <i class="fa-solid fa-tag"></i> Vender producto
@@ -37,10 +46,8 @@
 
     <main class="main-container">
         <section class="catalog-section">
-            <h2 class="section-title">Productos Destacados</h2>
-            <div class="products-grid" id="products-container">
-                <!-- Los productos se cargarán aquí desde Supabase -->
-            </div>
+            <h2 class="section-title" id="catalog-title">Productos Disponibles</h2>
+            <div class="products-grid" id="products-container"></div>
         </section>
     </main>
 
@@ -106,17 +113,22 @@
         </div>
     </div>
 
-    <!-- Modal Vender -->
+    <!-- Modal Vender / Publicar Producto -->
     <div class="modal" id="sell-modal" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Publicar producto</h3>
+                <h3 id="sell-modal-title">Publicar producto</h3>
                 <button class="close-sidebar-btn" type="button" data-close-modal="sell-modal">&times;</button>
             </div>
             <form id="sell-form">
+                <input type="hidden" id="product-id-hidden">
                 <div class="form-group">
                     <label for="product-title">Nombre del producto</label>
                     <input id="product-title" type="text" required maxlength="120">
+                </div>
+                <div class="form-group">
+                    <label for="product-category">Categoría</label>
+                    <select id="product-category" required></select>
                 </div>
                 <div class="form-group">
                     <label for="product-price">Precio</label>
@@ -130,6 +142,18 @@
                     </select>
                 </div>
                 <div class="form-group">
+                    <label for="product-stock">Unidades disponibles (Stock)</label>
+                    <input id="product-stock" type="number" min="1" value="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-status">Estado de disponibilidad</label>
+                    <select id="product-status">
+                        <option value="active">Disponible / Activo</option>
+                        <option value="paused">Pausado</option>
+                        <option value="sold_out">Agotado</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label for="product-condition">Condición</label>
                     <input id="product-condition" type="text" value="Usado" required>
                 </div>
@@ -138,18 +162,49 @@
                     <input id="product-location" type="text" required>
                 </div>
                 <div class="form-group">
-                    <label for="product-phone">Número de teléfono / WhatsApp</label>
-                    <input id="product-phone" type="tel" required inputmode="tel" placeholder="+505 8888 8888">
+                    <label for="product-phone">Teléfono / WhatsApp de contacto</label>
+                    <input id="product-phone" type="tel" required placeholder="+505 8888 8888">
                 </div>
                 <div class="form-group">
                     <label for="product-image">Imagen del producto</label>
-                    <input id="product-image" type="file" accept="image/*" required>
-                    <small class="field-help">Selecciona una imagen desde tu dispositivo (máx 5MB).</small>
-                    <img id="product-image-preview" class="upload-preview hidden" alt="Vista previa de la imagen">
+                    <input id="product-image" type="file" accept="image/*">
+                    <img id="product-image-preview" class="upload-preview hidden" alt="Vista previa">
                 </div>
                 <div class="form-actions">
-                    <button class="pay-btn" type="submit">Publicar</button>
+                    <button class="pay-btn" type="submit" id="save-product-btn">Guardar producto</button>
                     <button class="secondary-btn" type="button" data-close-modal="sell-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Perfil de Usuario -->
+    <div class="modal" id="profile-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Mi Perfil de Usuario</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="profile-modal">&times;</button>
+            </div>
+            <form id="profile-form">
+                <div class="profile-avatar-container" style="text-align: center; margin-bottom: 15px;">
+                    <img id="profile-avatar-preview" src="https://via.placeholder.com/100" alt="Avatar" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc;"><br>
+                    <span id="profile-online-badge" class="online-badge" style="display: inline-block; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-top: 5px;"><i class="fa-solid fa-circle"></i> En línea</span>
+                </div>
+                <div class="form-group">
+                    <label for="profile-avatar-file">Cambiar foto de perfil</label>
+                    <input id="profile-avatar-file" type="file" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label for="profile-name">Nombre completo</label>
+                    <input id="profile-name" type="text" required>
+                </div>
+                <div class="form-group">
+                    <label for="profile-phone">Teléfono personal</label>
+                    <input id="profile-phone" type="tel" required>
+                </div>
+                <div class="form-actions">
+                    <button class="pay-btn" type="submit">Actualizar Perfil</button>
+                    <button class="secondary-btn" type="button" data-close-modal="profile-modal">Cerrar</button>
                 </div>
             </form>
         </div>
