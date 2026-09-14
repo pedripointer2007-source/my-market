@@ -178,42 +178,6 @@ function actualizarSesion() {
   document.getElementById('notifications-btn')?.classList.toggle('hidden', !currentUser);
 }
 
-function renderizarProductos(productos = []) {
-  const contenedor = document.getElementById('products-container');
-  if (!contenedor) return;
-
-  const visibles = productos.filter(producto => producto.status === 'active' || producto.seller_id === currentUser?.id);
-  contenedor.innerHTML = visibles.length ? visibles.map(producto => {
-    const esPropietario = currentUser && producto.seller_id === currentUser.id;
-    const disponible = producto.status === 'active' && Number(producto.stock) > 0;
-    return `
-      <article class="product-card">
-        <div class="product-image-wrapper">
-          <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}">
-        </div>
-        <h3 class="product-title">${escapeHtml(producto.title || 'Producto')}</h3>
-        <div class="product-price">${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}</div>
-        <div class="product-stock">${Number(producto.stock || 0)} disponibles${producto.status !== 'active' ? ' • No disponible' : ''}</div>
-        <button class="btn-primary" data-add-product="${producto.id}" ${disponible ? '' : 'disabled'}>Agregar al carrito</button>
-        ${esPropietario ? `
-          <div class="owner-actions" style="display:flex; gap:8px; margin-top:10px;">
-            <button class="secondary-btn" style="flex:1; padding:6px; font-size:.8rem;" data-edit-product="${producto.id}">Editar</button>
-            <button class="secondary-btn" style="flex:1; padding:6px; font-size:.8rem; color:#ef4444; border-color:#ef4444;" data-delete-product="${producto.id}">Eliminar</button>
-          </div>` : ''}
-      </article>`;
-  }).join('') : '<p>No hay productos disponibles.</p>';
-
-  contenedor.querySelectorAll('[data-add-product]').forEach(button => {
-    button.addEventListener('click', () => agregarAlCarrito(Number(button.dataset.addProduct)));
-  });
-  contenedor.querySelectorAll('[data-edit-product]').forEach(button => {
-    button.addEventListener('click', () => abrirModalEdicion(Number(button.dataset.editProduct)));
-  });
-  contenedor.querySelectorAll('[data-delete-product]').forEach(button => {
-    button.addEventListener('click', () => eliminarProducto(Number(button.dataset.deleteProduct)));
-  });
-}
-
 async function cargarProductos() {
   const { data, error } = await supabaseClient
     .from('products')
@@ -405,11 +369,39 @@ async function cargarBandejaNotificaciones() {
     list.innerHTML = '<p>No se pudieron cargar las notificaciones.</p>';
     return;
   }
+  
   list.innerHTML = data?.length ? data.map(notification => {
     const isBuyer = notification.buyer_id === currentUser.id && notification.notification_type === 'buyer_confirmation';
     const whatsapp = notification.whatsapp_url ? `<a class="notification-whatsapp" href="${escapeHtml(notification.whatsapp_url)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>` : '';
-    return `<article class="inbox-notification ${notification.status === 'unread' ? 'unread' : ''}"><strong>${isBuyer ? 'Pedido enviado' : 'Nuevo pedido recibido'}</strong><span>${escapeHtml(notification.product_title)} • ${notification.quantity} unidad(es)</span><span>Total: ${Number(notification.total || 0).toFixed(2)}</span>${isBuyer ? whatsapp : `<span>Comprador: ${escapeHtml(notification.buyer_name)}</span><span>Teléfono: ${escapeHtml(notification.buyer_phone)}</span><span>Dirección: ${escapeHtml(notification.buyer_address)}</span>${whatsapp}`}</article>`;
+    return `
+      <article class="inbox-notification ${notification.status === 'unread' ? 'unread' : ''}" data-notification-id="${notification.id}">
+        <div class="notification-info" style="flex: 1;">
+          <strong>${isBuyer ? 'Pedido enviado' : 'Nuevo pedido recibido'}</strong>
+          <span>${escapeHtml(notification.product_title)} • ${notification.quantity} unidad(es)</span>
+          <span>Total: ${Number(notification.total || 0).toFixed(2)}</span>
+          ${isBuyer ? whatsapp : `<span>Comprador: ${escapeHtml(notification.buyer_name)}</span><span>Teléfono: ${escapeHtml(notification.buyer_phone)}</span><span>Dirección: ${escapeHtml(notification.buyer_address)}</span>${whatsapp}`}
+        </div>
+        <button class="btn-delete-notification" type="button" title="Eliminar notificación" data-delete-notif="${notification.id}" style="background: none; border: none; cursor: pointer; color: #ef4444; padding: 5px; display: flex; align-items: center; gap: 4px; font-size: 0.85rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+          <span>Eliminar</span>
+        </button>
+      </article>`;
   }).join('') : '<p>No tienes notificaciones.</p>';
+
+  // Asignar eventos de clic a los botones de eliminar dentro de la bandeja
+  list.querySelectorAll('[data-delete-notif]').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      const notifId = Number(e.currentTarget.dataset.deleteNotif);
+      const articleNode = e.currentTarget.closest('.inbox-notification');
+      await eliminarNotificacion(notifId, articleNode);
+    });
+  });
+
   const unread = (data || []).filter(item => item.status === 'unread');
   if (unread.length) await supabaseClient.from('notifications').update({ status: 'read' }).in('id', unread.map(item => item.id));
   actualizarContadorNotificaciones(data || []);
@@ -639,6 +631,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
   });
 });
+
 // ==========================================
 // RENDERIZAR PRODUCTOS (Con botón "Ver producto" y gestión de dueño)
 // ==========================================
@@ -699,7 +692,6 @@ function abrirModalVistaPrevia(productId) {
   const contenidoModal = document.getElementById('product-preview-content');
   if (!contenidoModal) return;
 
-  // Limpiar y formatear número de teléfono para WhatsApp (remover espacios y caracteres especiales, manteniendo el código de país si lo trae)
   const telefonoLimpio = (producto.seller_phone || producto.phone || '').replace(/\D/g, '');
   const mensajeWhats = encodeURIComponent(`Hola, estoy interesado en tu producto "${producto.title}" publicado en MyMarket.`);
   const enlaceWhatsApp = telefonoLimpio ? `https://wa.me/${telefonoLimpio}?text=${mensajeWhats}` : '#';
@@ -733,6 +725,7 @@ function abrirModalVistaPrevia(productId) {
 
   mostrarModal('product-preview-modal');
 }
+
 // ==========================================
 // FILTRADO POR CATEGORÍAS
 // ==========================================
@@ -740,7 +733,6 @@ document.addEventListener('click', event => {
   const chip = event.target.closest('.cat-chip');
   if (!chip) return;
 
-  // Actualizar clase activa visualmente
   document.querySelectorAll('.cat-chip').forEach(btn => btn.classList.remove('active'));
   chip.classList.add('active');
 
@@ -749,11 +741,11 @@ document.addEventListener('click', event => {
   if (categoriaId === 'all') {
     renderizarProductos(productsCache);
   } else {
-    // Filtrar los productos que coincidan con el category_id
     const productosFiltrados = productsCache.filter(p => Number(p.category_id) === Number(categoriaId));
     renderizarProductos(productosFiltrados);
   }
 });
+
 // ==========================================
 // GESTIÓN DEL MODAL DE PERFIL DE USUARIO
 // ==========================================
@@ -769,7 +761,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Cargar datos actuales del usuario en el formulario del perfil
       try {
         const { data: userData, error } = await supabaseClient
           .from('users')
@@ -781,7 +772,6 @@ document.addEventListener('DOMContentLoaded', () => {
           document.getElementById('profile-name').value = userData.full_name || '';
           document.getElementById('profile-phone').value = userData.phone || '';
         } else {
-          // Si por alguna razón no está en la tabla users, usamos metadatos
           document.getElementById('profile-name').value = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
           document.getElementById('profile-phone').value = '';
         }
@@ -794,7 +784,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Guardar cambios del perfil
   if (profileForm) {
     profileForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -807,12 +796,11 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         let avatarUrl = null;
 
-        // Opcional: Subir foto de perfil si se seleccionó una
         if (avatarFile) {
           const fileExt = avatarFile.name.split('.').pop();
           const fileName = `avatars/${currentUser.id}-${Date.now()}.${fileExt}`;
           const { error: uploadError } = await supabaseClient.storage
-            .from('product-images') // Usamos el mismo bucket o puedes crear uno 'avatars'
+            .from('product-images')
             .upload(fileName, avatarFile);
 
           if (!uploadError) {
@@ -823,7 +811,6 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
 
-        // Actualizar tabla 'users'
         const updatePayload = {
           full_name: nuevoNombre,
           phone: nuevoTelefono
@@ -845,6 +832,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
 // ==========================================
 // VISTA PREVIA DE LA FOTO DE PERFIL LOCAL
 // ==========================================
@@ -855,14 +843,12 @@ if (avatarFileInput) {
     if (file) {
       const previewImg = document.getElementById('profile-avatar-preview');
       if (previewImg) {
-        // Genera una URL temporal local para mostrar la imagen seleccionada de inmediato
         previewImg.src = URL.createObjectURL(file);
       }
     }
   });
 }
 
-// Un solo listener mantiene sincronizados autenticacion, botones y tarjetas.
 supabaseClient.auth.onAuthStateChange((_event, session) => {
   currentUser = session?.user || null;
   actualizarSesion();
@@ -870,7 +856,6 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
   if (typeof productsCache !== 'undefined') renderizarProductos(productsCache);
 });
 
-// Event listener para el botón de cerrar sesión
 document.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
@@ -886,8 +871,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
 // ==========================================
-// UTILIDAD DE FORMATEO DE PRECIOS (Comas y Puntos)
+// UTILIDAD DE FORMATEO DE PRECIOS
 // ==========================================
 function formatearPrecioInput(inputElement) {
   inputElement.addEventListener('input', (e) => {
@@ -896,7 +882,6 @@ function formatearPrecioInput(inputElement) {
       e.target.value = '';
       return;
     }
-    // Convertir a número con decimales implícitos (últimos 2 dígitos como centavos)
     let num = Number(value) / 100;
     e.target.value = num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   });
@@ -904,12 +889,10 @@ function formatearPrecioInput(inputElement) {
 
 function limpiarPrecioANumero(valorStr) {
   if (!valorStr) return 0;
-  // Remover comas y convertir a float limpio para la BD
   const limpio = String(valorStr).replace(/,/g, '');
   return parseFloat(limpio) || 0;
 }
 
-// Aplicar al input de precio cuando el DOM cargue
 document.addEventListener('DOMContentLoaded', () => {
   const priceInput = document.getElementById('product-price');
   if (priceInput) {
@@ -917,20 +900,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-// ==========================================
-// MODIFICACIÓN EN PUBLICAR PRODUCTO (Teléfono y Precio)
-// ==========================================
 document.getElementById('sell-form')?.addEventListener('submit', event => {
   event.preventDefault();
   const productId = document.getElementById('product-id-hidden').value;
   
-  // Unir código de país seleccionado con el número ingresado
   const countryCode = document.getElementById('country-code-select').value;
   const rawPhone = document.getElementById('product-phone').value.trim();
-  // Evitar duplicar el prefijo si el usuario ya lo escribió por error
   const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `${countryCode} ${rawPhone}`;
 
-  // Obtener precio limpio procesado por comas/puntos
   const rawPriceValue = document.getElementById('product-price').value;
   const numericPrice = limpiarPrecioANumero(rawPriceValue);
 
@@ -948,9 +925,6 @@ document.getElementById('sell-form')?.addEventListener('submit', event => {
   }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
 });
 
-// ==========================================
-// MODIFICACIÓN EN ABRIR MODAL DE EDICIÓN (Cargar Teléfono y Precio)
-// ==========================================
 function abrirModalEdicion(productId) {
   const producto = productsCache.find(product => product.id === productId);
   if (!producto || producto.seller_id !== currentUser?.id) return;
@@ -960,7 +934,6 @@ function abrirModalEdicion(productId) {
   document.getElementById('product-title').value = producto.title || '';
   document.getElementById('product-category').value = producto.category_id || '';
   
-  // Formatear precio actual con comas para el input de texto
   if (producto.price) {
     document.getElementById('product-price').value = Number(producto.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   } else {
@@ -973,7 +946,6 @@ function abrirModalEdicion(productId) {
   document.getElementById('product-condition').value = producto.condition_type || 'Usado';
   document.getElementById('product-location').value = producto.location || '';
   
-  // Separar código de país y número si es posible
   const fullPhone = producto.phone || producto.seller_phone || '';
   if (fullPhone.startsWith('+')) {
     const spaceIndex = fullPhone.indexOf(' ');
@@ -998,32 +970,38 @@ function abrirModalEdicion(productId) {
   }
   mostrarModal('sell-modal');
 }
-// Función para eliminar una notificación
+
+// ==========================================
+// ELIMINACIÓN DE NOTIFICACIONES (Con integración completa)
+// ==========================================
 async function eliminarNotificacion(notificationId, elementNode) {
     try {
-        const { error } = await supabase
+        const { error } = await supabaseClient
             .from('notifications')
             .delete()
             .eq('id', notificationId);
 
         if (error) throw error;
 
-        // Efecto visual de desvanecimiento antes de remover del DOM
         if (elementNode) {
             elementNode.style.transition = 'all 0.3s ease';
             elementNode.style.opacity = '0';
             elementNode.style.transform = 'translateX(20px)';
-            setTimeout(() => elementNode.remove(), 300);
+            setTimeout(() => {
+                elementNode.remove();
+                
+                // Si la lista queda vacía, mostrar el mensaje por defecto
+                const listContainer = document.getElementById('notifications-list');
+                if (listContainer && listContainer.children.length === 0) {
+                    listContainer.innerHTML = '<p>No tienes notificaciones.</p>';
+                }
+            }, 300);
         }
+        
+        // Actualizar el contador de notificaciones de la barra
+        await actualizarContadorNotificaciones();
     } catch (error) {
         console.error('Error al eliminar la notificación:', error.message);
         alert('No se pudo eliminar la notificación.');
     }
 }
-// Ejemplo dentro de tu función que dibuja las notificaciones
-const deleteBtn = notificationElement.querySelector('.btn-delete-notification, .btn-delete-icon-only');
-
-deleteBtn.addEventListener('click', () => {
-    eliminarNotificacion(notif.id, notificationElement);
-});
-
