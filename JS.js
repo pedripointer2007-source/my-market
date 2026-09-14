@@ -94,17 +94,24 @@ async function publicarProducto(productData, imageFile) {
     return;
   }
 
-  if (imageFile.size > 5 * 1024 * 1024) {
-    alert("La imagen supera el límite de 5 MB.");
-    return;
-  }
-
   try {
-    // Garantiza que el usuario exista en la tabla 'users' antes de la inserción foránea
-    await ensureSellerProfile();
+    // 1. Forzar la creación del perfil y esperar a que termine obligatoriamente
+    const fullName = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email.split('@')[0];
+    const { error: profileError } = await supabaseClient
+      .from('users')
+      .upsert({
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: fullName
+      }, { onConflict: 'id' });
 
+    if (profileError) {
+      console.error("Error asegurando perfil:", profileError.message);
+    }
+
+    // 2. Subir imagen
     const fileExt = imageFile.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
+    const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `products/${fileName}`;
 
     const { error: uploadError } = await supabaseClient.storage
@@ -119,6 +126,7 @@ async function publicarProducto(productData, imageFile) {
       .from('product-images')
       .getPublicUrl(filePath);
 
+    // 3. Insertar producto vinculado al seller_id correcto
     const { error: insertError } = await supabaseClient
       .from('products')
       .insert([
