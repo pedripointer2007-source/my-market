@@ -267,23 +267,33 @@ function actualizarCarritoUI() {
   }
 }
 
-function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
-  // Limpiar todo excepto los números y el signo +
+function abrirWhatsApp(phone, buyerName, productTitle) {
   let rawPhone = String(phone || '').trim();
-  
-  if (!rawPhone) return '';
+  if (!rawPhone) {
+    alert('El vendedor no tiene un número de teléfono registrado.');
+    return;
+  }
 
-  // Si no tiene el signo +, puedes definir un código de país por defecto (ej. '505' para Nicaragua)
-  // O asegurar que si solo tiene los 8 dígitos, se le agregue el +505 automáticamente:
+  // Extraer únicamente los dígitos del número
   let digits = rawPhone.replace(/\D/g, '');
-  
+
+  // Si tiene 8 dígitos (número local de Nicaragua), anteponer el código de país 505
   if (digits.length === 8) {
-    // Si es un número local de 8 dígitos de Nicaragua sin código, se lo anteponemos automáticamente
     digits = '505' + digits;
   }
 
-  const message = encodeURIComponent(`Hola ${buyerName}, recibí tu pedido de ${productTitle} en MyMarket.`);
-  return `https://wa.me/${digits}?text=${message}`;
+  const message = encodeURIComponent(`Hola, vi tu producto "${productTitle}" en MyMarket y estoy interesado.`);
+
+  // Detectar si es Android o un dispositivo móvil para usar el protocolo nativo si es necesario
+  const esAndroid = /Android/i.test(navigator.userAgent);
+
+  if (esAndroid) {
+    // Intento directo con el esquema de la aplicación nativa de WhatsApp en Android
+    window.location.href = `whatsapp://send?phone=${digits}&text=${message}`;
+  } else {
+    // Método universal para web / iPhone
+    window.open(`https://wa.me/${digits}?text=${message}`, '_blank');
+  }
 }
 
 async function enviarPedidoAVendedores(event) {
