@@ -82,6 +82,26 @@
                     <button class="secondary-btn" type="button" data-close-modal="login-modal">Cancelar</button>
                 </div>
             </form>
+            <form id="register-form" class="hidden">
+                <div class="form-group">
+                    <label for="register-email">Correo electrónico</label>
+                    <input id="register-email" type="email" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="register-password">Contraseña</label>
+                    <input id="register-password" type="password" minlength="6" required autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="register-password-confirm">Confirmar contraseña</label>
+                    <input id="register-password-confirm" type="password" minlength="6" required autocomplete="new-password">
+                </div>
+                <div class="form-actions">
+                    <button class="pay-btn" type="submit">Crear cuenta</button>
+                    <button class="secondary-btn" type="button" data-close-modal="login-modal">Cancelar</button>
+                </div>
+            </form>
+            <button class="auth-switch-btn" id="show-register-btn" type="button">¿No tienes cuenta? Crear una</button>
+            <button class="auth-switch-btn hidden" id="show-login-btn" type="button">Ya tengo una cuenta</button>
         </div>
     </div>
 

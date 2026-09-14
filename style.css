@@ -1069,6 +1069,20 @@ body {
     border-color: rgba(15, 23, 42, 0.25);
 }
 
+.auth-switch-btn {
+    display: block;
+    margin: 14px auto 0;
+    border: none;
+    background: transparent;
+    color: #b45309;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.auth-switch-btn:hover {
+    text-decoration: underline;
+}
+
 .pay-btn {
     width: 100%;
     background-image: linear-gradient(135deg, #ff9900 0%, #f0c14b 100%);

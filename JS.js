@@ -174,6 +174,7 @@ function setupInterface() {
         if (currentUser) {
             await signOutUser();
         } else {
+            showLoginForm();
             openModal('login-modal');
         }
     });
@@ -208,6 +209,9 @@ function setupInterface() {
     });
 
     document.getElementById('login-form').addEventListener('submit', signInUser);
+    document.getElementById('register-form').addEventListener('submit', registerUser);
+    document.getElementById('show-register-btn').addEventListener('click', showRegisterForm);
+    document.getElementById('show-login-btn').addEventListener('click', showLoginForm);
     document.getElementById('sell-form').addEventListener('submit', publishProduct);
     document.getElementById('payment-form').addEventListener('submit', completeOrder);
 }
@@ -302,4 +306,54 @@ function completeOrder(event) {
     closeModal('payment-modal');
     event.target.reset();
     showToast('Pedido recibido. Nos pondremos en contacto contigo.');
+}
+
+async function registerUser(event) {
+    event.preventDefault();
+    const button = event.submitter;
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+    const confirmation = document.getElementById('register-password-confirm').value;
+
+    if (password !== confirmation) {
+        showToast('Las contraseñas no coinciden', 'error');
+        return;
+    }
+
+    button.disabled = true;
+    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    button.disabled = false;
+
+    if (error) {
+        showToast(`No se pudo crear la cuenta: ${error.message}`, 'error');
+        return;
+    }
+
+    document.getElementById('register-form').reset();
+    if (data.session) {
+        currentUser = data.user;
+        updateAuthButton();
+        closeModal('login-modal');
+        showToast('Cuenta creada e inicio de sesión realizado');
+        return;
+    }
+
+    showLoginForm();
+    showToast('Cuenta creada. Revisa tu correo para confirmar la cuenta.');
+}
+
+function showRegisterForm() {
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+    document.getElementById('show-register-btn').classList.add('hidden');
+    document.getElementById('show-login-btn').classList.remove('hidden');
+    document.querySelector('#login-modal .modal-header h3').textContent = 'Crear cuenta';
+}
+
+function showLoginForm() {
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+    document.getElementById('show-login-btn').classList.add('hidden');
+    document.getElementById('show-register-btn').classList.remove('hidden');
+    document.querySelector('#login-modal .modal-header h3').textContent = 'Iniciar sesión';
 }
