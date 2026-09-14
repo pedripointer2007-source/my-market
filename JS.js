@@ -311,7 +311,7 @@ function completeOrder(event) {
 async function registerUser(event) {
     event.preventDefault();
     const button = event.submitter;
-    const email = document.getElementById('register-email').value.trim();
+    const email = document.getElementById('register-email').value.trim().toLowerCase();
     const password = document.getElementById('register-password').value;
     const confirmation = document.getElementById('register-password-confirm').value;
 
@@ -321,25 +321,54 @@ async function registerUser(event) {
     }
 
     button.disabled = true;
-    const { data, error } = await supabaseClient.auth.signUp({ email, password });
-    button.disabled = false;
 
-    if (error) {
-        showToast(`No se pudo crear la cuenta: ${error.message}`, 'error');
-        return;
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+
+        if (error) {
+            showToast(getRegistrationErrorMessage(error), 'error');
+            return;
+        }
+
+        document.getElementById('register-form').reset();
+        if (data.session) {
+            currentUser = data.user;
+            updateAuthButton();
+            closeModal('login-modal');
+            showToast('Cuenta creada e inicio de sesión realizado');
+            return;
+        }
+
+        showLoginForm();
+        showToast('Cuenta creada. Revisa tu correo para confirmar la cuenta.');
+    } catch (error) {
+        console.error('Error inesperado al crear cuenta:', error);
+        showToast('No se pudo conectar con el servicio de cuentas. Intenta nuevamente.', 'error');
+    } finally {
+        button.disabled = false;
+    }
+}
+
+function getRegistrationErrorMessage(error) {
+    const message = String(error.message || '').toLowerCase();
+
+    if (message.includes('user already registered') || message.includes('already been registered')) {
+        return 'Este correo ya tiene una cuenta. Inicia sesión.';
+    }
+    if (message.includes('password should be at least') || message.includes('password is too short')) {
+        return 'La contraseña debe tener al menos 6 caracteres.';
+    }
+    if (message.includes('invalid email')) {
+        return 'Escribe un correo electrónico válido.';
+    }
+    if (message.includes('signup is disabled')) {
+        return 'El registro está deshabilitado en Supabase. Activa Allow new users to sign up en Authentication > Settings.';
+    }
+    if (message.includes('email provider is disabled')) {
+        return 'El proveedor de correo está deshabilitado en Supabase. Actívalo en Authentication > Providers > Email.';
     }
 
-    document.getElementById('register-form').reset();
-    if (data.session) {
-        currentUser = data.user;
-        updateAuthButton();
-        closeModal('login-modal');
-        showToast('Cuenta creada e inicio de sesión realizado');
-        return;
-    }
-
-    showLoginForm();
-    showToast('Cuenta creada. Revisa tu correo para confirmar la cuenta.');
+    return `No se pudo crear la cuenta: ${error.message || 'error desconocido'}`;
 }
 
 function showRegisterForm() {
