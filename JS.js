@@ -82,14 +82,14 @@ async function iniciarSesion(email, password) {
 // ==========================================
 // PUBLICAR PRODUCTO
 // ==========================================
-async function publicarProducto(productData, imageFile) {
+async function publicarProducto(productData, imageFile, productId = null) {
   if (!currentUser) {
     alert("Debes iniciar sesión para publicar un producto.");
     mostrarModal('login-modal');
     return;
   }
 
-  if (!imageFile) {
+  if (!imageFile && !productId) {
     alert("La imagen del producto es obligatoria.");
     return;
   }
@@ -109,51 +109,44 @@ async function publicarProducto(productData, imageFile) {
       console.error("Error asegurando perfil:", profileError.message);
     }
 
-    // 2. Subir imagen
-    const fileExt = imageFile.name.split('.').pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `products/${fileName}`;
+    let imageUrl = productData.image_url || '';
+    const productoAnterior = productId ? productsCache.find(producto => producto.id === productId) : null;
+    if (!imageFile && productoAnterior) imageUrl = productoAnterior.image_url || '';
 
-    const { error: uploadError } = await supabaseClient.storage
-      .from('product-images')
-      .upload(filePath, imageFile);
-
-    if (uploadError) {
-      throw new Error("Error al subir la imagen: " + uploadError.message);
+    if (imageFile) {
+      const fileExt = imageFile.name.split('.').pop();
+      const filePath = `products/${currentUser.id}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabaseClient.storage.from('product-images').upload(filePath, imageFile, { upsert: false });
+      if (uploadError) throw new Error("Error al subir la imagen: " + uploadError.message);
+      imageUrl = supabaseClient.storage.from('product-images').getPublicUrl(filePath).data.publicUrl;
     }
 
-    const { data: publicUrlData } = supabaseClient.storage
-      .from('product-images')
-      .getPublicUrl(filePath);
+    const payload = {
+      category_id: productData.category_id,
+      title: productData.title,
+      description: productData.description || '',
+      price: productData.price,
+      currency: productData.currency,
+      stock: productData.stock,
+      condition_type: productData.condition_type,
+      location: productData.location,
+      status: productData.status || 'active',
+      phone: productData.phone,
+      seller_phone: productData.seller_phone
+    };
+    if (imageUrl) payload.image_url = imageUrl;
 
-    // 3. Insertar producto vinculado al seller_id correcto
-    const { error: insertError } = await supabaseClient
-      .from('products')
-      .insert([
-        {
-          seller_id: currentUser.id,
-          category_id: productData.category_id,
-          title: productData.title,
-          description: productData.description,
-          price: productData.price,
-          currency: productData.currency,
-          stock: productData.stock,
-          condition_type: productData.condition_type,
-          location: productData.location,
-          status: 'active',
-          image_url: publicUrlData.publicUrl,
-          phone: productData.phone,
-          seller_phone: productData.seller_phone
-        }
-      ]);
+    const request = productId
+      ? supabaseClient.from('products').update(payload).eq('id', productId).eq('seller_id', currentUser.id)
+      : supabaseClient.from('products').insert([{ ...payload, seller_id: currentUser.id }]);
+    const { error: saveError } = await request;
+    if (saveError) throw new Error(`Error al ${productId ? 'actualizar' : 'guardar'} el producto: ${saveError.message}`);
 
-    if (insertError) {
-      throw new Error("Error al guardar el producto: " + insertError.message);
-    }
-
-    alert("¡Producto publicado con éxito!");
+    alert(productId ? "¡Producto actualizado con éxito!" : "¡Producto publicado con éxito!");
     cerrarModal('sell-modal');
     document.getElementById('sell-form').reset();
+    document.getElementById('product-id-hidden').value = '';
+    document.getElementById('sell-modal-title').innerText = 'Publicar producto';
     await cargarProductos();
 
   } catch (err) {
@@ -188,19 +181,35 @@ function renderizarProductos(productos = []) {
   const contenedor = document.getElementById('products-container');
   if (!contenedor) return;
 
-  contenedor.innerHTML = productos.length ? productos.map(producto => `
-    <article class="product-card">
-      <div class="product-image-wrapper">
-        <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}">
-      </div>
-      <h3 class="product-title">${escapeHtml(producto.title || 'Producto')}</h3>
-      <div class="product-price">${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}</div>
-      <div class="product-stock">${Number(producto.stock || 0)} disponibles</div>
-      <button class="btn-primary" data-add-product="${producto.id}" ${Number(producto.stock) > 0 ? '' : 'disabled'}>Agregar al carrito</button>
-    </article>`).join('') : '<p>No hay productos disponibles.</p>';
+  const visibles = productos.filter(producto => producto.status === 'active' || producto.seller_id === currentUser?.id);
+  contenedor.innerHTML = visibles.length ? visibles.map(producto => {
+    const esPropietario = currentUser && producto.seller_id === currentUser.id;
+    const disponible = producto.status === 'active' && Number(producto.stock) > 0;
+    return `
+      <article class="product-card">
+        <div class="product-image-wrapper">
+          <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}">
+        </div>
+        <h3 class="product-title">${escapeHtml(producto.title || 'Producto')}</h3>
+        <div class="product-price">${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}</div>
+        <div class="product-stock">${Number(producto.stock || 0)} disponibles${producto.status !== 'active' ? ' • No disponible' : ''}</div>
+        <button class="btn-primary" data-add-product="${producto.id}" ${disponible ? '' : 'disabled'}>Agregar al carrito</button>
+        ${esPropietario ? `
+          <div class="owner-actions" style="display:flex; gap:8px; margin-top:10px;">
+            <button class="secondary-btn" style="flex:1; padding:6px; font-size:.8rem;" data-edit-product="${producto.id}">Editar</button>
+            <button class="secondary-btn" style="flex:1; padding:6px; font-size:.8rem; color:#ef4444; border-color:#ef4444;" data-delete-product="${producto.id}">Eliminar</button>
+          </div>` : ''}
+      </article>`;
+  }).join('') : '<p>No hay productos disponibles.</p>';
 
   contenedor.querySelectorAll('[data-add-product]').forEach(button => {
     button.addEventListener('click', () => agregarAlCarrito(Number(button.dataset.addProduct)));
+  });
+  contenedor.querySelectorAll('[data-edit-product]').forEach(button => {
+    button.addEventListener('click', () => abrirModalEdicion(Number(button.dataset.editProduct)));
+  });
+  contenedor.querySelectorAll('[data-delete-product]').forEach(button => {
+    button.addEventListener('click', () => eliminarProducto(Number(button.dataset.deleteProduct)));
   });
 }
 
@@ -208,7 +217,6 @@ async function cargarProductos() {
   const { data, error } = await supabaseClient
     .from('products')
     .select('*')
-    .eq('status', 'active')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -234,6 +242,36 @@ function agregarAlCarrito(id) {
   
   localStorage.setItem('mymarket_cart', JSON.stringify(cartItems));
   alert('Producto agregado al carrito.');
+}
+
+async function eliminarProducto(productId) {
+  if (!currentUser || !confirm('¿Estás seguro de que deseas eliminar este producto?')) return;
+  const { error } = await supabaseClient.from('products').delete().eq('id', productId).eq('seller_id', currentUser.id);
+  if (error) {
+    alert('No se pudo eliminar el producto: ' + error.message);
+    return;
+  }
+  alert('Producto eliminado correctamente.');
+  await cargarProductos();
+}
+
+function abrirModalEdicion(productId) {
+  const producto = productsCache.find(product => product.id === productId);
+  if (!producto || producto.seller_id !== currentUser?.id) return;
+  document.getElementById('sell-modal-title').innerText = 'Editar producto';
+  document.getElementById('product-id-hidden').value = producto.id;
+  document.getElementById('product-title').value = producto.title || '';
+  document.getElementById('product-category').value = producto.category_id || '';
+  document.getElementById('product-price').value = producto.price || 0;
+  document.getElementById('product-currency').value = producto.currency || 'NIO';
+  document.getElementById('product-stock').value = producto.stock || 1;
+  document.getElementById('product-status').value = producto.status || 'active';
+  document.getElementById('product-condition').value = producto.condition_type || 'Usado';
+  document.getElementById('product-location').value = producto.location || '';
+  document.getElementById('product-phone').value = producto.phone || producto.seller_phone || '';
+  const preview = document.getElementById('product-image-preview');
+  if (producto.image_url) { preview.src = producto.image_url; preview.classList.remove('hidden'); }
+  mostrarModal('sell-modal');
 }
 
 function escapeHtml(value) {
@@ -324,7 +362,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('sell-btn')?.addEventListener('click', () => {
-    if (currentUser) mostrarModal('sell-modal');
+    if (currentUser) {
+      document.getElementById('sell-form').reset();
+      document.getElementById('product-id-hidden').value = '';
+      document.getElementById('sell-modal-title').innerText = 'Publicar producto';
+      document.getElementById('product-image-preview')?.classList.add('hidden');
+      mostrarModal('sell-modal');
+    }
     else {
       alert('Debes iniciar sesión para vender.');
       mostrarModal('login-modal');
@@ -343,16 +387,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('sell-form')?.addEventListener('submit', event => {
     event.preventDefault();
+    const productId = document.getElementById('product-id-hidden').value;
     publicarProducto({
       title: document.getElementById('product-title').value.trim(),
       category_id: Number(document.getElementById('product-category').value),
       price: Number(document.getElementById('product-price').value),
       currency: document.getElementById('product-currency').value,
       stock: Number(document.getElementById('product-stock').value),
+      status: document.getElementById('product-status').value,
       condition_type: document.getElementById('product-condition').value,
       location: document.getElementById('product-location').value.trim(),
       phone: document.getElementById('product-phone').value.trim(),
       seller_phone: document.getElementById('product-phone').value.trim()
-    }, document.getElementById('product-image').files[0]);
+    }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
   });
 });
