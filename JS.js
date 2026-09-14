@@ -268,8 +268,20 @@ function actualizarCarritoUI() {
 }
 
 function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (!digits) return '';
+  // Limpiar todo excepto los números y el signo +
+  let rawPhone = String(phone || '').trim();
+  
+  if (!rawPhone) return '';
+
+  // Si no tiene el signo +, puedes definir un código de país por defecto (ej. '505' para Nicaragua)
+  // O asegurar que si solo tiene los 8 dígitos, se le agregue el +505 automáticamente:
+  let digits = rawPhone.replace(/\D/g, '');
+  
+  if (digits.length === 8) {
+    // Si es un número local de 8 dígitos de Nicaragua sin código, se lo anteponemos automáticamente
+    digits = '505' + digits;
+  }
+
   const message = encodeURIComponent(`Hola ${buyerName}, recibí tu pedido de ${productTitle} en MyMarket.`);
   return `https://wa.me/${digits}?text=${message}`;
 }
@@ -904,9 +916,9 @@ document.getElementById('sell-form')?.addEventListener('submit', event => {
   event.preventDefault();
   const productId = document.getElementById('product-id-hidden').value;
   
-  const countryCode = document.getElementById('country-code-select').value;
-  const rawPhone = document.getElementById('product-phone').value.trim();
-  const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `${countryCode} ${rawPhone}`;
+  const rawPhone = document.getElementById('profile-phone').value.trim();
+// Si el usuario no puso el +, puedes concatenarle el código de país correspondiente (ej: +505)
+const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `+505${rawPhone}`;
 
   const rawPriceValue = document.getElementById('product-price').value;
   const numericPrice = limpiarPrecioANumero(rawPriceValue);
