@@ -5,7 +5,7 @@
 // Asegúrate de inicializar tu cliente de Supabase con tus credenciales
 const supabaseUrl = 'https://daizqjgoxizapeoatmou.supabase.co';
 const supabaseKey = 'sb_publishable_Qs2v39dvDNqNn4hKqb2l7g_GEJOyNhN';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // Variable global para almacenar el usuario actual
 let currentUser = null;
@@ -15,7 +15,7 @@ let currentUser = null;
 // ==========================================
 async function registrarUsuario(email, password, fullName) {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await supabaseClient.auth.signUp({
       email: email,
       password: password,
       options: {
@@ -44,7 +44,7 @@ async function registrarUsuario(email, password, fullName) {
 // ==========================================
 async function iniciarSesion(email, password) {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
       email: email,
       password: password
     });
@@ -73,7 +73,7 @@ async function ensureSellerProfile() {
   if (!currentUser) return;
 
   // Verificar si el perfil ya existe en la tabla pública 'users'
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('users')
     .select('*')
     .eq('id', currentUser.id)
@@ -81,7 +81,7 @@ async function ensureSellerProfile() {
 
   if (error && error.code === 'PGRST116') {
     // Si por alguna razón el trigger falló o no existe, se puede hacer un upsert de respaldo
-    const { error: insertError } = await supabase
+    const { error: insertError } = await supabaseClient
       .from('users')
       .upsert({
         id: currentUser.id,
@@ -128,7 +128,7 @@ async function publicarProducto(productData, imageFile) {
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `products/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabaseClient.storage
       .from('product-images')
       .upload(filePath, imageFile);
 
@@ -137,12 +137,12 @@ async function publicarProducto(productData, imageFile) {
     }
 
     // Obtener URL pública de la imagen
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseClient.storage
       .from('product-images')
       .getPublicUrl(filePath);
 
     // Insertar el producto en la base de datos vinculando el seller_id con el usuario actual
-    const { data, error: insertError } = await supabase
+    const { data, error: insertError } = await supabaseClient
       .from('products')
       .insert([
         {
@@ -207,7 +207,7 @@ function renderizarProductos(productos = []) {
 }
 
 async function cargarProductos() {
-  const { data, error } = await supabase.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false });
+  const { data, error } = await supabaseClient.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false });
   if (error) { console.error(error); alert(`No se pudieron cargar los productos: ${error.message}`); return; }
   productsCache = data || [];
   renderizarProductos(productsCache);
@@ -227,12 +227,12 @@ let productsCache = [];
 let cartItems = JSON.parse(localStorage.getItem('mymarket_cart') || '[]');
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const session = await supabase.auth.getSession();
+  const session = await supabaseClient.auth.getSession();
   currentUser = session.data.session?.user || null;
   actualizarSesion();
-  document.getElementById('login-btn')?.addEventListener('click', () => currentUser ? supabase.auth.signOut().then(() => { currentUser = null; actualizarSesion(); }) : mostrarModal('login-modal'));
+  document.getElementById('login-btn')?.addEventListener('click', () => currentUser ? supabaseClient.auth.signOut().then(() => { currentUser = null; actualizarSesion(); }) : mostrarModal('login-modal'));
   document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => cerrarModal(button.dataset.closeModal)));
-  document.getElementById('login-form')?.addEventListener('submit', async event => { event.preventDefault(); await iniciarSesion(document.getElementById('login-email').value, document.getElementById('login-password').value); currentUser = (await supabase.auth.getUser()).data.user; actualizarSesion(); cerrarModal('login-modal'); });
+  document.getElementById('login-form')?.addEventListener('submit', async event => { event.preventDefault(); await iniciarSesion(document.getElementById('login-email').value, document.getElementById('login-password').value); currentUser = (await supabaseClient.auth.getUser()).data.user; actualizarSesion(); cerrarModal('login-modal'); });
   document.getElementById('register-form')?.addEventListener('submit', async event => { event.preventDefault(); await registrarUsuario(document.getElementById('register-email').value, document.getElementById('register-password').value, 'Usuario'); });
   document.getElementById('cart-btn')?.addEventListener('click', () => { if (!currentUser) { mostrarModal('login-modal'); return; } document.getElementById('cart-sidebar').classList.add('active'); });
   document.getElementById('close-cart')?.addEventListener('click', () => document.getElementById('cart-sidebar').classList.remove('active'));
