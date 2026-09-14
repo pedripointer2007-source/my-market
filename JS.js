@@ -1,7 +1,6 @@
 // ==========================================
 // 1. CONFIGURACIÓN DE SUPABASE
 // ==========================================
-// Reemplaza con tus credenciales de Supabase (Project Settings -> API)
 const SUPABASE_URL = 'https://daizqjgoxizapeoatmou.supabase.co'; 
 const SUPABASE_KEY = 'sb_publishable_Qs2v39dvDNqNn4hKqb2l7g_GEJOyNhN';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -29,7 +28,6 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
-// Control del Carrito (Sidebar)
 const cartSidebar = document.getElementById('cart-sidebar');
 
 // ==========================================
@@ -39,16 +37,16 @@ async function fetchProducts() {
     const container = document.getElementById('products-container');
     container.innerHTML = '<p>Cargando productos...</p>';
 
-    let { data, error } = await supabaseClient.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false });
-    if (error && error.message.includes('created_at')) {
-        const fallback = await supabaseClient.from('products').select('*').eq('status', 'active');
-        data = fallback.data;
-        error = fallback.error;
-    }
+    const { data, error } = await supabaseClient
+        .from('products')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
     if (error) {
         showToast('Error al cargar productos', 'error');
         console.error(error);
+        container.innerHTML = '<p>Error al cargar el catálogo.</p>';
         return;
     }
 
@@ -113,14 +111,16 @@ function removeFromCart(productId) {
 
 function saveCart() {
     localStorage.setItem('mymarket_cart', JSON.stringify(cart));
-    document.getElementById('cart-count').innerText = cart.reduce((acc, item) => acc + item.qty, 0);
+    const badge = document.getElementById('cart-count');
+    if (badge) badge.innerText = cart.reduce((acc, item) => acc + item.qty, 0);
 }
 
 function renderCart() {
     const container = document.getElementById('cart-items-container');
     const totalVal = document.getElementById('cart-total-val');
+    if (!container || !totalVal) return;
+
     container.innerHTML = '';
-    
     let total = 0;
 
     cart.forEach(item => {
@@ -130,7 +130,7 @@ function renderCart() {
         div.innerHTML = `
             <div class="cart-item-details">
                 <div class="cart-item-title">${escapeHtml(item.title || 'Producto')}</div>
-                    <div class="cart-item-price">${item.qty} x ${escapeHtml(item.currency || 'NIO')} ${Number(item.price || 0).toFixed(2)}</div>
+                <div class="cart-item-price">${item.qty} x ${escapeHtml(item.currency || 'NIO')} ${Number(item.price || 0).toFixed(2)}</div>
             </div>
             <button class="remove-item-btn" onclick="removeFromCart(${item.id})"><i class="fa-solid fa-trash"></i></button>
         `;
@@ -138,15 +138,17 @@ function renderCart() {
     });
 
     totalVal.innerText = total.toFixed(2);
-    saveCart(); // Actualiza el contador en el header
+    saveCart();
 }
 
-// Inicializar la aplicación
+// ==========================================
+// 6. INICIALIZACIÓN Y EVENTOS
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     setupInterface();
     restoreSession();
     fetchProducts();
-    saveCart(); // Inicializa el contador del carrito al recargar
+    saveCart();
 });
 
 function escapeHtml(value) {
@@ -184,6 +186,7 @@ function setupInterface() {
             openModal('login-modal');
         }
     });
+
     document.getElementById('sell-btn').addEventListener('click', () => {
         if (!currentUser) {
             showToast('Inicia sesión para vender un producto', 'error');
@@ -192,8 +195,10 @@ function setupInterface() {
         }
         openModal('sell-modal');
     });
+
     document.getElementById('search-btn').addEventListener('click', filterProducts);
     document.getElementById('search-input').addEventListener('input', filterProducts);
+    
     document.getElementById('checkout-btn').addEventListener('click', () => {
         if (!cart.length) {
             showToast('Tu carrito está vacío', 'error');
@@ -205,11 +210,13 @@ function setupInterface() {
     document.querySelectorAll('[data-close-modal]').forEach(button => {
         button.addEventListener('click', () => closeModal(button.dataset.closeModal));
     });
+
     document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', event => {
             if (event.target === modal) closeModal(modal.id);
         });
     });
+
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') document.querySelectorAll('.modal.active').forEach(modal => closeModal(modal.id));
     });
@@ -220,7 +227,9 @@ function setupInterface() {
     document.getElementById('show-login-btn').addEventListener('click', showLoginForm);
     document.getElementById('sell-form').addEventListener('submit', publishProduct);
     document.getElementById('payment-form').addEventListener('submit', completeOrder);
-    document.getElementById('product-image').addEventListener('change', previewUploadedImage);
+    
+    const imgInput = document.getElementById('product-image');
+    if (imgInput) imgInput.addEventListener('change', previewUploadedImage);
 }
 
 function filterProducts() {
@@ -232,11 +241,13 @@ function filterProducts() {
 async function signInUser(event) {
     event.preventDefault();
     const button = event.submitter;
-    button.disabled = true;
+    if (button) button.disabled = true;
+    
     const email = document.getElementById('login-email').value.trim();
     const password = document.getElementById('login-password').value;
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    button.disabled = false;
+    
+    if (button) button.disabled = false;
 
     if (error) {
         showToast(`No se pudo iniciar sesión: ${error.message}`, 'error');
@@ -261,6 +272,7 @@ async function signOutUser() {
 
 function updateAuthButton() {
     const button = document.getElementById('login-btn');
+    if (!button) return;
     button.innerHTML = currentUser
         ? '<i class="fa-solid fa-right-from-bracket"></i> <span>Cerrar sesión</span>'
         : '<i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>';
@@ -286,6 +298,7 @@ async function publishProduct(event) {
 
     const imageFile = document.getElementById('product-image').files[0];
     const phone = document.getElementById('product-phone').value.trim();
+    
     if (!imageFile || !phone) {
         showToast('La imagen y el teléfono son obligatorios', 'error');
         return;
@@ -315,23 +328,26 @@ async function publishProduct(event) {
         location: document.getElementById('product-location').value.trim(),
         image_url: imageUrl,
         seller_phone: phone,
+        phone: phone,
         seller_id: currentUser.id,
         status: 'active'
     };
+
     const { error } = await supabaseClient.from('products').insert([product]);
+    
     if (error) {
         console.error('Error al publicar producto:', error);
-        const detail = error.code ? ` [${error.code}]` : '';
-        let hint = '';
-        if (error.code === '42703') hint = ' Revisa que existan seller_phone, seller_id e image_url en products.';
-        if (error.code === '42501') hint = ' Revisa las políticas INSERT de la tabla products en Supabase.';
-        if (error.code === '22001') hint = ' image_url es demasiado corto; cambia esa columna a tipo text.';
-        showToast(`No se pudo publicar${detail}: ${error.message}.${hint}`, 'error');
+        showToast(`No se pudo publicar: ${error.message}`, 'error');
         return;
     }
+
     document.getElementById('sell-form').reset();
-    document.getElementById('product-image-preview').classList.add('hidden');
-    document.getElementById('product-image-preview').removeAttribute('src');
+    const preview = document.getElementById('product-image-preview');
+    if (preview) {
+        preview.classList.add('hidden');
+        preview.removeAttribute('src');
+    }
+    
     closeModal('sell-modal');
     showToast('Producto publicado correctamente');
     await fetchProducts();
@@ -340,6 +356,8 @@ async function publishProduct(event) {
 function previewUploadedImage(event) {
     const file = event.target.files[0];
     const preview = document.getElementById('product-image-preview');
+    if (!preview) return;
+    
     if (!file) {
         preview.removeAttribute('src');
         preview.classList.add('hidden');
@@ -347,10 +365,6 @@ function previewUploadedImage(event) {
     }
     preview.src = URL.createObjectURL(file);
     preview.classList.remove('hidden');
-}
-
-function sanitizeFileName(fileName) {
-    return fileName.toLowerCase().replace(/[^a-z0-9.-]/g, '-');
 }
 
 function compressImageToDataUrl(file) {
@@ -379,6 +393,7 @@ function openProductPreview(productId) {
 
     const phone = normalizePhone(product.seller_phone || product.phone || '');
     const whatsappUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(`Hola, estoy interesado en tu producto: ${product.title}`)}` : '';
+    
     document.getElementById('product-preview-content').innerHTML = `
         <div class="product-detail-body">
             <div class="detail-preview"><img src="${escapeHtml(product.image_url || 'https://via.placeholder.com/500')}" alt="${escapeHtml(product.title || 'Producto')}"></div>
@@ -389,7 +404,7 @@ function openProductPreview(productId) {
                     <div><strong>Precio</strong><br>${escapeHtml(product.currency || 'NIO')} ${Number(product.price || 0).toFixed(2)}</div>
                     <div><strong>Condición</strong><br>${escapeHtml(product.condition_type || 'No especificada')}</div>
                     <div><strong>Ubicación</strong><br>${escapeHtml(product.location || 'No especificada')}</div>
-                    <div><strong>Teléfono</strong><br>${escapeHtml(product.seller_phone || 'No disponible')}</div>
+                    <div><strong>Teléfono</strong><br>${escapeHtml(product.seller_phone || product.phone || 'No disponible')}</div>
                 </div>
                 <div class="detail-contact">
                     <span>Contacta al vendedor por WhatsApp</span>
@@ -429,7 +444,7 @@ async function registerUser(event) {
         return;
     }
 
-    button.disabled = true;
+    if (button) button.disabled = true;
 
     try {
         const { data, error } = await supabaseClient.auth.signUp({ email, password });
@@ -449,35 +464,20 @@ async function registerUser(event) {
         }
 
         showLoginForm();
-        showToast('Cuenta creada. Revisa tu correo para confirmar la cuenta.');
+        showToast('Cuenta creada. Revisa tu correo o inicia sesión.');
     } catch (error) {
         console.error('Error inesperado al crear cuenta:', error);
-        showToast('No se pudo conectar con el servicio de cuentas. Intenta nuevamente.', 'error');
+        showToast('No se pudo conectar con el servicio de cuentas.', 'error');
     } finally {
-        button.disabled = false;
+        if (button) button.disabled = false;
     }
 }
 
 function getRegistrationErrorMessage(error) {
     const message = String(error.message || '').toLowerCase();
-
-    if (message.includes('user already registered') || message.includes('already been registered')) {
-        return 'Este correo ya tiene una cuenta. Inicia sesión.';
-    }
-    if (message.includes('password should be at least') || message.includes('password is too short')) {
-        return 'La contraseña debe tener al menos 6 caracteres.';
-    }
-    if (message.includes('invalid email')) {
-        return 'Escribe un correo electrónico válido.';
-    }
-    if (message.includes('signup is disabled')) {
-        return 'El registro está deshabilitado en Supabase. Activa Allow new users to sign up en Authentication > Settings.';
-    }
-    if (message.includes('email provider is disabled')) {
-        return 'El proveedor de correo está deshabilitado en Supabase. Actívalo en Authentication > Providers > Email.';
-    }
-
-    return `No se pudo crear la cuenta: ${error.message || 'error desconocido'}`;
+    if (message.includes('user already registered')) return 'Este correo ya tiene una cuenta.';
+    if (message.includes('password should be at least')) return 'La contraseña debe tener al menos 6 caracteres.';
+    return `No se pudo crear la cuenta: ${error.message}`;
 }
 
 function showRegisterForm() {
