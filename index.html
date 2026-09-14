@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyMarket - Tu Tienda Online Profesional</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SDK de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="toast-container" class="toast-container"></div>
+
+    <header class="navbar">
+        <div class="navbar-brand">MyMarket</div>
+        <div class="search-bar">
+            <input type="text" id="search-input" placeholder="Buscar productos por nombre...">
+            <button id="search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+        <div class="navbar-actions">
+            <button class="login-btn" id="login-btn" aria-label="Iniciar sesión">
+                <i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>
+            </button>
+            <div class="cart-trigger" id="cart-btn" aria-label="Ver carrito">
+                <i class="fa-solid fa-cart-shopping"></i>
+                <span class="cart-badge" id="cart-count">0</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="action-buttons-bar">
+        <button class="action-btn action-sell" id="sell-btn">
+            <i class="fa-solid fa-tag"></i> Vender producto
+        </button>
+    </div>
+
+    <main class="main-container">
+        <section class="catalog-section">
+            <h2 class="section-title">Productos Destacados</h2>
+            <div class="products-grid" id="products-container">
+                <!-- Los productos se cargarán aquí desde Supabase -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Sidebar del Carrito -->
+    <div class="cart-sidebar" id="cart-sidebar">
+        <div class="cart-sidebar-header">
+            <h3>Tu Carrito</h3>
+            <button class="close-sidebar-btn" id="close-cart">&times;</button>
+        </div>
+        <div class="cart-sidebar-body">
+            <div class="cart-items-list" id="cart-items-container"></div>
+        </div>
+        <div class="cart-sidebar-footer">
+            <div class="summary-row">
+                <span>Total:</span>
+                <span class="total-price">NIO <span id="cart-total-val">0.00</span></span>
+            </div>
+            <button class="checkout-btn" id="checkout-btn">Proceder al pago</button>
+        </div>
+    </div>
+
+    <div class="modal" id="login-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Iniciar sesión</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="login-modal">&times;</button>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="login-email">Correo electrónico</label>
+                    <input id="login-email" type="email" required autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label for="login-password">Contraseña</label>
+                    <input id="login-password" type="password" required autocomplete="current-password">
+                </div>
+                <div class="form-actions">
+                    <button class="pay-btn" type="submit">Entrar</button>
+                    <button class="secondary-btn" type="button" data-close-modal="login-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="sell-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Publicar producto</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="sell-modal">&times;</button>
+            </div>
+            <form id="sell-form">
+                <div class="form-group">
+                    <label for="product-title">Nombre del producto</label>
+                    <input id="product-title" type="text" required maxlength="120">
+                </div>
+                <div class="form-group">
+                    <label for="product-price">Precio</label>
+                    <input id="product-price" type="number" min="0" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-currency">Moneda</label>
+                    <select id="product-currency">
+                        <option value="NIO">NIO</option>
+                        <option value="USD">USD</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="product-condition">Condición</label>
+                    <input id="product-condition" type="text" value="Usado" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-location">Ubicación</label>
+                    <input id="product-location" type="text" required>
+                </div>
+                <div class="form-group">
+                    <label for="product-image">URL de imagen</label>
+                    <input id="product-image" type="url" placeholder="https://...">
+                </div>
+                <div class="form-actions">
+                    <button class="pay-btn" type="submit">Publicar</button>
+                    <button class="secondary-btn" type="button" data-close-modal="sell-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="payment-modal" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Confirmar pedido</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="payment-modal">&times;</button>
+            </div>
+            <form id="payment-form">
+                <div class="form-group">
+                    <label for="payment-name">Nombre completo</label>
+                    <input id="payment-name" type="text" required autocomplete="name">
+                </div>
+                <div class="form-group">
+                    <label for="payment-phone">Teléfono</label>
+                    <input id="payment-phone" type="tel" required autocomplete="tel">
+                </div>
+                <div class="form-group">
+                    <label for="payment-address">Dirección de entrega</label>
+                    <textarea id="payment-address" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button class="pay-btn" type="submit">Confirmar pedido</button>
+                    <button class="secondary-btn" type="button" data-close-modal="payment-modal">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="JS.js"></script>
+</body>
+</html>
