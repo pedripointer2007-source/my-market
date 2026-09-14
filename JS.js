@@ -650,3 +650,47 @@ supabaseClient.auth.onAuthStateChange(async (event, session) => {
     renderizarProductos(productsCache);
   }
 });
+// ==========================================
+// CONTROL DE SESIÓN Y VISIBILIDAD DE BOTONES
+// ==========================================
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  currentUser = session?.user || null;
+
+  const loginBtn = document.getElementById('login-btn');
+  const profileBtn = document.getElementById('profile-btn');
+  const logoutBtn = document.getElementById('logout-btn');
+  const sellBtn = document.getElementById('sell-btn');
+
+  if (currentUser) {
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (profileBtn) profileBtn.classList.remove('hidden');
+    if (logoutBtn) logoutBtn.classList.remove('hidden');
+    if (sellBtn) sellBtn.style.display = 'inline-flex';
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (profileBtn) profileBtn.classList.add('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden');
+    if (sellBtn) sellBtn.style.display = 'none';
+  }
+
+  if (typeof productsCache !== 'undefined' && productsCache.length > 0) {
+    renderizarProductos(productsCache);
+  }
+});
+
+// Event listener para el botón de cerrar sesión
+document.addEventListener('DOMContentLoaded', () => {
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+        alert("Has cerrado sesión correctamente.");
+      } catch (err) {
+        console.error("Error al cerrar sesión:", err.message);
+        alert("No se pudo cerrar sesión: " + err.message);
+      }
+    });
+  }
+});
