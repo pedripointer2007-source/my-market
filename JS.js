@@ -3,9 +3,9 @@
 // ==========================================
 
 // Asegúrate de inicializar tu cliente de Supabase con tus credenciales
-// const supabaseUrl = 'TU_SUPABASE_URL';
-// const supabaseKey = 'TU_SUPABASE_ANON_KEY';
-// const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+ const supabaseUrl = 'https://daizqjgoxizapeoatmou.supabase.co/rest/v1/';
+ const supabaseKey = 'sb_publishable_Qs2v39dvDNqNn4hKqb2l7g_GEJOyNhN';
+ const supabase = supabase.createClient(supabaseUrl, supabaseKey);
 
 // Variable global para almacenar el usuario actual
 let currentUser = null;
