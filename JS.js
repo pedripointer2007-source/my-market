@@ -37,13 +37,25 @@ const cartSidebar = document.getElementById('cart-sidebar');
 // ==========================================
 async function fetchCategories() {
     const { data, error } = await supabaseClient.from('categories').select('*').order('name');
-    if (error) {
-        console.error('Error cargando categorías:', error);
-        return;
+    if (error || !data || data.length === 0) {
+        console.warn('No se encontraron categorías en Supabase. Se usarán categorías predeterminadas.', error);
+        categoriesList = getDefaultCategories();
+    } else {
+        categoriesList = data;
     }
-    categoriesList = data || [];
     renderCategoryNavbar();
     populateCategorySelects();
+}
+
+function getDefaultCategories() {
+    return [
+        { id: 1, name: 'Electrónica' },
+        { id: 2, name: 'Muebles' },
+        { id: 3, name: 'Hogar' },
+        { id: 4, name: 'Ropa' },
+        { id: 5, name: 'Vehículos' },
+        { id: 6, name: 'Otros' }
+    ];
 }
 
 function renderCategoryNavbar() {
@@ -77,6 +89,7 @@ function populateCategorySelects() {
         opt.textContent = cat.name;
         select.appendChild(opt);
     });
+    if (select.options.length > 0 && !select.value) select.selectedIndex = 0;
 }
 
 async function fetchProducts() {
