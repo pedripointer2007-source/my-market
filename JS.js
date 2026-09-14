@@ -275,10 +275,10 @@ function abrirWhatsApp(phone, buyerName, productTitle) {
     return;
   }
 
-  // 1. Limpiar todo lo que no sea número (elimina espacios, guiones, paréntesis y el signo +)
+  // Extraer ÚNICAMENTE los números de todo el texto (elimina espacios, guiones, el signo +, etc.)
   let digits = rawPhone.replace(/\D/g, '');
 
-  // 2. Si tiene 8 dígitos (número local de Nicaragua), anteponer el código de país 505
+  // Si por alguna razón tiene 8 dígitos (número local de Nicaragua sin código), anteponer 505
   if (digits.length === 8) {
     digits = '505' + digits;
   }
@@ -290,12 +290,15 @@ function abrirWhatsApp(phone, buyerName, productTitle) {
 
   const message = encodeURIComponent(`Hola ${buyerName || ''}, estoy interesado en tu producto "${productTitle}" publicado en MyMarket.`);
 
-  // 3. Usar el formato universal que abre la app en Android y WhatsApp Web en PC de forma segura
+  // Usar el endpoint universal de la API que Android abre perfectamente sin errores de símbolos
   const whatsappUrl = `https://api.whatsapp.com/send?phone=${digits}&text=${message}`;
   
-  // Forzar apertura en nueva pestaña/app
   window.open(whatsappUrl, '_blank');
 }
+const inputPhoneVal = document.getElementById('product-phone').value.trim();
+// Limpia cualquier espacio interno o guion antes de agregar el prefijo
+const onlyDigits = inputPhoneVal.replace(/\D/g, '');
+const finalPhone = onlyDigits.length === 8 ? `+505${onlyDigits}` : (inputPhoneVal.startsWith('+') ? inputPhoneVal : `+${onlyDigits}`);
 
 async function enviarPedidoAVendedores(event) {
   event.preventDefault();
