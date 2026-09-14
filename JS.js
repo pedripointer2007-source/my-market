@@ -2,16 +2,41 @@
 // CONFIGURACIÓN DE SUPABASE Y AUTENTICACIÓN
 // ==========================================
 
-// Asegúrate de inicializar tu cliente de Supabase con tus credenciales
 const supabaseUrl = 'https://daizqjgoxizapeoatmou.supabase.co';
 const supabaseKey = 'sb_publishable_Qs2v39dvDNqNn4hKqb2l7g_GEJOyNhN';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-// Variable global para almacenar el usuario actual
 let currentUser = null;
+let productsCache = [];
+let cartItems = JSON.parse(localStorage.getItem('mymarket_cart') || '[]');
 
 // ==========================================
-// FUNCIÓN DE REGISTRO COMPLETA
+// FUNCIÓN DE ASEGURAR PERFIL (Resuelve errores con Google Auth)
+// ==========================================
+async function ensureSellerProfile() {
+  if (!currentUser) return;
+
+  try {
+    const fullName = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email.split('@')[0];
+
+    const { error: upsertError } = await supabaseClient
+      .from('users')
+      .upsert({
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: fullName
+      }, { onConflict: 'id' });
+
+    if (upsertError) {
+      console.error("Error al asegurar el perfil del vendedor:", upsertError.message);
+    }
+  } catch (err) {
+    console.error("Excepción en ensureSellerProfile:", err);
+  }
+}
+
+// ==========================================
+// REGISTRO Y AUTENTICACIÓN
 // ==========================================
 async function registrarUsuario(email, password, fullName) {
   try {
@@ -19,29 +44,21 @@ async function registrarUsuario(email, password, fullName) {
       email: email,
       password: password,
       options: {
-        data: {
-          full_name: fullName
-        }
+        data: { full_name: fullName }
       }
     });
 
     if (error) {
-      console.error("Error en el registro:", error.message);
       alert(error.message);
-      return { success: false, error: error.message };
+      return;
     }
 
     alert("¡Registro exitoso! Por favor verifica tu cuenta o inicia sesión.");
-    return { success: false, data: data }; // O success: true según tu flujo de confirmación por correo
   } catch (err) {
     console.error("Error inesperado en el registro:", err);
-    return { success: false, error: err };
   }
 }
 
-// ==========================================
-// FUNCIÓN DE INICIO DE SESIÓN
-// ==========================================
 async function iniciarSesion(email, password) {
   try {
     const { data, error } = await supabaseClient.auth.signInWithPassword({
@@ -50,80 +67,42 @@ async function iniciarSesion(email, password) {
     });
 
     if (error) {
-      console.error("Error al iniciar sesión:", error.message);
       alert("Credenciales incorrectas o usuario no registrado.");
       return;
     }
 
     currentUser = data.user;
-    console.log("Sesión iniciada correctamente:", currentUser);
-    
-    // Aquí puedes llamar a funciones posteriores, por ejemplo, asegurar el perfil o cargar la interfaz
     await ensureSellerProfile();
-    
+    actualizarSesion();
   } catch (err) {
     console.error("Error inesperado al iniciar sesión:", err);
   }
 }
 
 // ==========================================
-// GESTIÓN DE PERFIL Y PRODUCTOS (`JS_3.js`)
+// PUBLICAR PRODUCTO
 // ==========================================
-async function ensureSellerProfile() {
-  if (!currentUser) return;
-
-  // Verificar si el perfil ya existe en la tabla pública 'users'
-  const { data, error } = await supabaseClient
-    .from('users')
-    .select('*')
-    .eq('id', currentUser.id)
-    .single();
-
-  if (error && error.code === 'PGRST116') {
-    // Si por alguna razón el trigger falló o no existe, se puede hacer un upsert de respaldo
-    const { error: insertError } = await supabaseClient
-      .from('users')
-      .upsert({
-        id: currentUser.id,
-        email: currentUser.email,
-        full_name: currentUser.user_metadata?.full_name || 'Usuario'
-      });
-
-    if (insertError) {
-      console.error("Error al asegurar el perfil del vendedor:", insertError.message);
-    }
-  }
-}
-
 async function publicarProducto(productData, imageFile) {
-  // 1. Validar sesión activa
   if (!currentUser) {
     alert("Debes iniciar sesión para publicar un producto.");
+    mostrarModal('login-modal');
     return;
   }
 
-  // 2. Validar imagen obligatoria si no es edición
   if (!imageFile) {
     alert("La imagen del producto es obligatoria.");
     return;
   }
 
-  // 3. Validar tamaño y formato de imagen (Ej: Máx 5MB)
   if (imageFile.size > 5 * 1024 * 1024) {
     alert("La imagen supera el límite de 5 MB.");
     return;
   }
 
-  if (!imageFile.type.startsWith('image/')) {
-    alert("El archivo seleccionado no es un formato de imagen válido.");
-    return;
-  }
-
   try {
-    // Asegurar que el perfil exista antes de insertar
+    // Garantiza que el usuario exista en la tabla 'users' antes de la inserción foránea
     await ensureSellerProfile();
 
-    // Lógica para subir la imagen a Supabase Storage (ejemplo simplificado)
     const fileExt = imageFile.name.split('.').pop();
     const fileName = `${Math.random()}.${fileExt}`;
     const filePath = `products/${fileName}`;
@@ -136,13 +115,11 @@ async function publicarProducto(productData, imageFile) {
       throw new Error("Error al subir la imagen: " + uploadError.message);
     }
 
-    // Obtener URL pública de la imagen
     const { data: publicUrlData } = supabaseClient.storage
       .from('product-images')
       .getPublicUrl(filePath);
 
-    // Insertar el producto en la base de datos vinculando el seller_id con el usuario actual
-    const { data, error: insertError } = await supabaseClient
+    const { error: insertError } = await supabaseClient
       .from('products')
       .insert([
         {
@@ -167,6 +144,9 @@ async function publicarProducto(productData, imageFile) {
     }
 
     alert("¡Producto publicado con éxito!");
+    cerrarModal('sell-modal');
+    document.getElementById('sell-form').reset();
+    await cargarProductos();
 
   } catch (err) {
     console.error("Fallo en la publicación:", err.message);
@@ -174,66 +154,79 @@ async function publicarProducto(productData, imageFile) {
   }
 }
 
+// ==========================================
+// UTILIDADES Y MODALES
+// ==========================================
 function mostrarModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) modal.classList.add('active');
+  document.getElementById(id)?.classList.add('active');
 }
 
 function cerrarModal(id) {
-  const modal = document.getElementById(id);
-  if (modal) modal.classList.remove('active');
+  document.getElementById(id)?.classList.remove('active');
 }
 
 function actualizarSesion() {
   const loginBtn = document.getElementById('login-btn');
   const profileBtn = document.getElementById('profile-btn');
   if (!loginBtn || !profileBtn) return;
-  loginBtn.innerHTML = currentUser ? '<i class="fa-solid fa-right-from-bracket"></i> <span>Cerrar sesión</span>' : '<i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>';
+
+  loginBtn.innerHTML = currentUser 
+    ? '<i class="fa-solid fa-right-from-bracket"></i> <span>Cerrar sesión</span>' 
+    : '<i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>';
   profileBtn.classList.toggle('hidden', !currentUser);
 }
 
 function renderizarProductos(productos = []) {
   const contenedor = document.getElementById('products-container');
   if (!contenedor) return;
+
   contenedor.innerHTML = productos.length ? productos.map(producto => `
     <article class="product-card">
-      <div class="product-image-wrapper"><img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}"></div>
+      <div class="product-image-wrapper">
+        <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}">
+      </div>
       <h3 class="product-title">${escapeHtml(producto.title || 'Producto')}</h3>
       <div class="product-price">${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}</div>
       <div class="product-stock">${Number(producto.stock || 0)} disponibles</div>
       <button class="btn-primary" data-add-product="${producto.id}" ${Number(producto.stock) > 0 ? '' : 'disabled'}>Agregar al carrito</button>
     </article>`).join('') : '<p>No hay productos disponibles.</p>';
-  contenedor.querySelectorAll('[data-add-product]').forEach(button => button.addEventListener('click', () => agregarAlCarrito(Number(button.dataset.addProduct))));
+
+  contenedor.querySelectorAll('[data-add-product]').forEach(button => {
+    button.addEventListener('click', () => agregarAlCarrito(Number(button.dataset.addProduct)));
+  });
 }
 
 async function cargarProductos() {
-  const { data, error } = await supabaseClient.from('products').select('*').eq('status', 'active').order('created_at', { ascending: false });
-  if (error) { console.error(error); alert(`No se pudieron cargar los productos: ${error.message}`); return; }
+  const { data, error } = await supabaseClient
+    .from('products')
+    .select('*')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
   productsCache = data || [];
   renderizarProductos(productsCache);
 }
 
 function agregarAlCarrito(id) {
-  if (!currentUser) { alert('Debes iniciar sesión para comprar.'); mostrarModal('login-modal'); return; }
+  if (!currentUser) { 
+    alert('Debes iniciar sesión para comprar.'); 
+    mostrarModal('login-modal'); 
+    return; 
+  }
   const producto = productsCache.find(item => item.id === id);
   if (!producto || Number(producto.stock) < 1) return;
+  
   const existente = cartItems.find(item => item.id === id);
   if (existente) existente.qty += 1;
   else cartItems.push({ ...producto, qty: 1 });
+  
   localStorage.setItem('mymarket_cart', JSON.stringify(cartItems));
+  alert('Producto agregado al carrito.');
 }
-
-let productsCache = [];
-let cartItems = JSON.parse(localStorage.getItem('mymarket_cart') || '[]');
-
-const defaultCategories = [
-  { id: 1, name: 'Electrónica' },
-  { id: 2, name: 'Muebles' },
-  { id: 3, name: 'Hogar' },
-  { id: 4, name: 'Ropa' },
-  { id: 5, name: 'Vehículos' },
-  { id: 6, name: 'Otros' }
-];
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>'"]/g, character => ({
@@ -246,43 +239,100 @@ async function cargarCategorias() {
   const navigation = document.getElementById('category-nav-container');
   if (!select) return;
 
+  const defaultCategories = [
+    { id: 1, name: 'Electrónica' },
+    { id: 2, name: 'Moda' },
+    { id: 3, name: 'Hogar' },
+    { id: 4, name: 'Deportes' },
+    { id: 5, name: 'Juguetes' }
+  ];
+
   let categories = defaultCategories;
   try {
     const { data } = await supabaseClient.from('categories').select('id, name').order('name');
     if (data?.length) categories = data;
   } catch (error) {
-    console.warn('Se usaran categorias locales:', error);
+    console.warn('Usando categorías locales por defecto');
   }
 
-  select.innerHTML = categories.map(category => `<option value="${category.id}">${escapeHtml(category.name)}</option>`).join('');
-  select.value = String(categories[0].id);
+  select.innerHTML = categories.map(cat => `<option value="${cat.id}">${escapeHtml(cat.name)}</option>`).join('');
 
   if (navigation) {
-    navigation.innerHTML = `<button class="cat-chip active" data-category="all"><i class="fa-solid fa-border-all"></i> Todos</button>`;
-    categories.forEach(category => {
-      navigation.insertAdjacentHTML('beforeend', `<button class="cat-chip" data-category="${category.id}"><i class="fa-solid fa-box-open"></i> ${escapeHtml(category.name)}</button>`);
+    navigation.innerHTML = `<button class="cat-chip active" data-category="all">Todos</button>`;
+    categories.forEach(cat => {
+      navigation.insertAdjacentHTML('beforeend', `<button class="cat-chip" data-category="${cat.id}">${escapeHtml(cat.name)}</button>`);
     });
   }
 }
 
+// ==========================================
+// EVENT LISTENERS DE INICIO
+// ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-  const session = await supabaseClient.auth.getSession();
-  currentUser = session.data.session?.user || null;
+  const sessionData = await supabaseClient.auth.getSession();
+  currentUser = sessionData.data.session?.user || null;
+  
+  if (currentUser) {
+    await ensureSellerProfile();
+  }
+  
   actualizarSesion();
   await cargarCategorias();
-  document.getElementById('login-btn')?.addEventListener('click', () => currentUser ? supabaseClient.auth.signOut().then(() => { currentUser = null; actualizarSesion(); }) : mostrarModal('login-modal'));
-  document.querySelectorAll('[data-close-modal]').forEach(button => button.addEventListener('click', () => cerrarModal(button.dataset.closeModal)));
-  document.getElementById('login-form')?.addEventListener('submit', async event => { event.preventDefault(); await iniciarSesion(document.getElementById('login-email').value, document.getElementById('login-password').value); currentUser = (await supabaseClient.auth.getUser()).data.user; actualizarSesion(); cerrarModal('login-modal'); });
-  document.getElementById('register-form')?.addEventListener('submit', async event => { event.preventDefault(); await registrarUsuario(document.getElementById('register-email').value, document.getElementById('register-password').value, 'Usuario'); });
-  document.getElementById('cart-btn')?.addEventListener('click', () => { if (!currentUser) { mostrarModal('login-modal'); return; } document.getElementById('cart-sidebar').classList.add('active'); });
-  document.getElementById('close-cart')?.addEventListener('click', () => document.getElementById('cart-sidebar').classList.remove('active'));
-  document.getElementById('sell-btn')?.addEventListener('click', () => currentUser ? mostrarModal('sell-modal') : mostrarModal('login-modal'));
-  document.getElementById('search-btn')?.addEventListener('click', filtrarProductos);
-  document.getElementById('search-input')?.addEventListener('input', filtrarProductos);
-  document.getElementById('checkout-btn')?.addEventListener('click', () => currentUser ? mostrarModal('payment-modal') : mostrarModal('login-modal'));
-  document.getElementById('profile-btn')?.addEventListener('click', () => mostrarModal('profile-modal'));
-  document.getElementById('show-register-btn')?.addEventListener('click', () => { document.getElementById('login-form').classList.add('hidden'); document.getElementById('register-form').classList.remove('hidden'); });
-  document.getElementById('show-login-btn')?.addEventListener('click', () => { document.getElementById('register-form').classList.add('hidden'); document.getElementById('login-form').classList.remove('hidden'); });
+  await cargarProductos();
+
+  document.getElementById('login-btn')?.addEventListener('click', async () => {
+    if (currentUser) {
+      await supabaseClient.auth.signOut();
+      currentUser = null;
+      actualizarSesion();
+      alert('Sesión cerrada.');
+    } else {
+      mostrarModal('login-modal');
+    }
+  });
+
+  document.querySelectorAll('[data-close-modal]').forEach(button => {
+    button.addEventListener('click', () => cerrarModal(button.dataset.closeModal));
+  });
+
+  document.getElementById('login-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    await iniciarSesion(
+      document.getElementById('login-email').value, 
+      document.getElementById('login-password').value
+    );
+    currentUser = (await supabaseClient.auth.getUser()).data.user;
+    actualizarSesion();
+    cerrarModal('login-modal');
+  });
+
+  document.getElementById('register-form')?.addEventListener('submit', async event => {
+    event.preventDefault();
+    await registrarUsuario(
+      document.getElementById('register-email').value, 
+      document.getElementById('register-password').value, 
+      'Usuario'
+    );
+  });
+
+  document.getElementById('sell-btn')?.addEventListener('click', () => {
+    if (currentUser) mostrarModal('sell-modal');
+    else {
+      alert('Debes iniciar sesión para vender.');
+      mostrarModal('login-modal');
+    }
+  });
+
+  document.getElementById('show-register-btn')?.addEventListener('click', () => {
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('register-form').classList.remove('hidden');
+  });
+
+  document.getElementById('show-login-btn')?.addEventListener('click', () => {
+    document.getElementById('register-form').classList.add('hidden');
+    document.getElementById('login-form').classList.remove('hidden');
+  });
+
   document.getElementById('sell-form')?.addEventListener('submit', event => {
     event.preventDefault();
     publicarProducto({
@@ -297,11 +347,4 @@ document.addEventListener('DOMContentLoaded', async () => {
       seller_phone: document.getElementById('product-phone').value.trim()
     }, document.getElementById('product-image').files[0]);
   });
-  document.getElementById('payment-form')?.addEventListener('submit', event => { event.preventDefault(); alert('Pedido recibido correctamente.'); closeModal('payment-modal'); });
-  await cargarProductos();
 });
-
-function filtrarProductos() {
-  const query = document.getElementById('search-input').value.toLowerCase().trim();
-  renderizarProductos(productsCache.filter(producto => String(producto.title || '').toLowerCase().includes(query)));
-}
