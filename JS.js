@@ -217,6 +217,13 @@ async function publishProduct(event) {
         return;
     }
 
+    const { error: profileError } = await ensureSellerProfile();
+    if (profileError) {
+        console.error('No se pudo crear el perfil del vendedor:', profileError);
+        showToast(`No se pudo preparar el perfil del vendedor: ${profileError.message}`, 'error');
+        return;
+    }
+
     const productData = {
         title: document.getElementById('product-title').value.trim(),
         category_id: Number(document.getElementById('product-category').value),
@@ -250,6 +257,19 @@ async function publishProduct(event) {
     closeModal('sell-modal');
     showToast(productId ? 'Producto actualizado con éxito' : 'Producto publicado correctamente');
     await fetchProducts();
+}
+
+async function ensureSellerProfile() {
+    const profileData = {
+        id: currentUser.id,
+        full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Vendedor',
+        phone: document.getElementById('product-phone').value.trim(),
+        is_online: true,
+        updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseClient.from('profiles').upsert(profileData, { onConflict: 'id' });
+    return { error };
 }
 
 function openEditProduct(productId) {
