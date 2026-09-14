@@ -402,3 +402,224 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
   });
 });
+// ==========================================
+// RENDERIZAR PRODUCTOS (Con botón "Ver producto" y gestión de dueño)
+// ==========================================
+function renderizarProductos(productos = []) {
+  const contenedor = document.getElementById('products-container');
+  if (!contenedor) return;
+
+  contenedor.innerHTML = productos.length ? productos.map(producto => {
+    const esPropietario = currentUser && producto.seller_id === currentUser.id;
+    return `
+      <article class="product-card">
+        <div class="product-image-wrapper">
+          <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/200')}" alt="${escapeHtml(producto.title)}">
+        </div>
+        <h3 class="product-title">${escapeHtml(producto.title || 'Producto')}</h3>
+        <div class="product-price">${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}</div>
+        <div class="product-stock">${Number(producto.stock || 0)} disponibles</div>
+        
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+          <button class="secondary-btn" style="width: 100%; background: #f1f5f9; border-color: #cbd5e1;" data-view-product="${producto.id}">Ver producto</button>
+          <button class="btn-primary" data-add-product="${producto.id}" ${Number(producto.stock) > 0 ? '' : 'disabled'}>Agregar al carrito</button>
+        </div>
+        
+        ${esPropietario ? `
+          <div class="owner-actions" style="display: flex; gap: 8px; margin-top: 8px;">
+            <button class="secondary-btn" style="flex: 1; padding: 6px; font-size: 0.8rem;" data-edit-product="${producto.id}">Editar</button>
+            <button class="secondary-btn" style="flex: 1; padding: 6px; font-size: 0.8rem; color: #ef4444; border-color: #ef4444;" data-delete-product="${producto.id}">Eliminar</button>
+          </div>
+        ` : ''}
+      </article>`;
+  }).join('') : '<p>No hay productos disponibles.</p>';
+
+  // Event Listeners
+  contenedor.querySelectorAll('[data-view-product]').forEach(button => {
+    button.addEventListener('click', () => abrirModalVistaPrevia(Number(button.dataset.viewProduct)));
+  });
+
+  contenedor.querySelectorAll('[data-add-product]').forEach(button => {
+    button.addEventListener('click', () => agregarAlCarrito(Number(button.dataset.addProduct)));
+  });
+
+  contenedor.querySelectorAll('[data-edit-product]').forEach(button => {
+    button.addEventListener('click', () => abrirModalEdicion(Number(button.dataset.editProduct)));
+  });
+
+  contenedor.querySelectorAll('[data-delete-product]').forEach(button => {
+    button.addEventListener('click', () => eliminarProducto(Number(button.dataset.deleteProduct)));
+  });
+}
+
+// ==========================================
+// ABRIR MODAL DE DETALLES Y WHATSAPP
+// ==========================================
+function abrirModalVistaPrevia(productId) {
+  const producto = productsCache.find(p => p.id === productId);
+  if (!producto) return;
+
+  const contenidoModal = document.getElementById('product-preview-content');
+  if (!contenidoModal) return;
+
+  // Limpiar y formatear número de teléfono para WhatsApp (remover espacios y caracteres especiales, manteniendo el código de país si lo trae)
+  const telefonoLimpio = (producto.seller_phone || producto.phone || '').replace(/\D/g, '');
+  const mensajeWhats = encodeURIComponent(`Hola, estoy interesado en tu producto "${producto.title}" publicado en MyMarket.`);
+  const enlaceWhatsApp = telefonoLimpio ? `https://wa.me/${telefonoLimpio}?text=${mensajeWhats}` : '#';
+
+  contenidoModal.innerHTML = `
+    <div style="text-align: center; margin-bottom: 15px;">
+      <img src="${escapeHtml(producto.image_url || 'https://via.placeholder.com/300')}" alt="${escapeHtml(producto.title)}" style="max-height: 250px; max-width: 100%; object-fit: contain; border-radius: 8px;">
+    </div>
+    <h2 style="font-size: 1.25rem; margin-bottom: 10px; color: #0f172a;">${escapeHtml(producto.title)}</h2>
+    <div style="font-size: 1.5rem; font-weight: bold; color: #d97706; margin-bottom: 12px;">
+      ${escapeHtml(producto.currency || 'NIO')} ${Number(producto.price || 0).toFixed(2)}
+    </div>
+    <div style="background: #f8fafc; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 0.9rem; color: #334155;">
+      <p style="margin-bottom: 6px;"><strong>Condición:</strong> ${escapeHtml(producto.condition_type || 'No especificada')}</p>
+      <p style="margin-bottom: 6px;"><strong>Ubicación:</strong> ${escapeHtml(producto.location || 'No especificada')}</p>
+      <p style="margin-bottom: 6px;"><strong>Stock disponible:</strong> ${Number(producto.stock || 0)} unidades</p>
+      <p style="margin-top: 8px;"><strong>Descripción:</strong><br>${escapeHtml(producto.description || 'Sin descripción detallada.')}</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${telefonoLimpio ? `
+        <a href="${enlaceWhatsApp}" target="_blank" class="pay-btn" style="background-color: #22c55e; color: white; text-align: center; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: bold; padding: 12px; border-radius: 8px;">
+          <i class="fa-brands fa-whatsapp" style="font-size: 1.2rem;"></i> Contactar al vendedor por WhatsApp
+        </a>
+      ` : `
+        <p style="color: #ef4444; font-size: 0.85rem; text-align: center;">Este vendedor no registró un número de teléfono válido.</p>
+      `}
+      <button class="secondary-btn" type="button" onclick="cerrarModal('product-preview-modal')" style="width: 100%;">Cerrar</button>
+    </div>
+  `;
+
+  mostrarModal('product-preview-modal');
+}
+// ==========================================
+// FILTRADO POR CATEGORÍAS
+// ==========================================
+document.addEventListener('click', event => {
+  const chip = event.target.closest('.cat-chip');
+  if (!chip) return;
+
+  // Actualizar clase activa visualmente
+  document.querySelectorAll('.cat-chip').forEach(btn => btn.classList.remove('active'));
+  chip.classList.add('active');
+
+  const categoriaId = chip.dataset.category;
+
+  if (categoriaId === 'all') {
+    renderizarProductos(productsCache);
+  } else {
+    // Filtrar los productos que coincidan con el category_id
+    const productosFiltrados = productsCache.filter(p => Number(p.category_id) === Number(categoriaId));
+    renderizarProductos(productosFiltrados);
+  }
+});
+// ==========================================
+// GESTIÓN DEL MODAL DE PERFIL DE USUARIO
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  const profileBtn = document.getElementById('profile-btn');
+  const profileForm = document.getElementById('profile-form');
+
+  if (profileBtn) {
+    profileBtn.addEventListener('click', async () => {
+      if (!currentUser) {
+        alert('Debes iniciar sesión.');
+        mostrarModal('login-modal');
+        return;
+      }
+
+      // Cargar datos actuales del usuario en el formulario del perfil
+      try {
+        const { data: userData, error } = await supabaseClient
+          .from('users')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (userData) {
+          document.getElementById('profile-name').value = userData.full_name || '';
+          document.getElementById('profile-phone').value = userData.phone || '';
+        } else {
+          // Si por alguna razón no está en la tabla users, usamos metadatos
+          document.getElementById('profile-name').value = currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || '';
+          document.getElementById('profile-phone').value = '';
+        }
+      } catch (err) {
+        console.error("Error al cargar perfil:", err);
+      }
+
+      mostrarModal('profile-modal');
+    });
+  }
+
+  // Guardar cambios del perfil
+  if (profileForm) {
+    profileForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!currentUser) return;
+
+      const nuevoNombre = document.getElementById('profile-name').value.trim();
+      const nuevoTelefono = document.getElementById('profile-phone').value.trim();
+      const avatarFile = document.getElementById('profile-avatar-file').files[0];
+
+      try {
+        let avatarUrl = null;
+
+        // Opcional: Subir foto de perfil si se seleccionó una
+        if (avatarFile) {
+          const fileExt = avatarFile.name.split('.').pop();
+          const fileName = `avatars/${currentUser.id}-${Date.now()}.${fileExt}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from('product-images') // Usamos el mismo bucket o puedes crear uno 'avatars'
+            .upload(fileName, avatarFile);
+
+          if (!uploadError) {
+            const { data: urlData } = supabaseClient.storage
+              .from('product-images')
+              .getPublicUrl(fileName);
+            avatarUrl = urlData.publicUrl;
+          }
+        }
+
+        // Actualizar tabla 'users'
+        const updatePayload = {
+          full_name: nuevoNombre,
+          phone: nuevoTelefono
+        };
+
+        const { error: updateError } = await supabaseClient
+          .from('users')
+          .update(updatePayload)
+          .eq('id', currentUser.id);
+
+        if (updateError) throw updateError;
+
+        alert('¡Perfil actualizado con éxito!');
+        cerrarModal('profile-modal');
+      } catch (err) {
+        console.error("Error al actualizar perfil:", err.message);
+        alert("No se pudo actualizar el perfil: " + err.message);
+      }
+    });
+  }
+});
+// ==========================================
+// VISTA PREVIA DE LA FOTO DE PERFIL LOCAL
+// ==========================================
+const avatarFileInput = document.getElementById('profile-avatar-file');
+if (avatarFileInput) {
+  avatarFileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const previewImg = document.getElementById('profile-avatar-preview');
+      if (previewImg) {
+        // Genera una URL temporal local para mostrar la imagen seleccionada de inmediato
+        previewImg.src = URL.createObjectURL(file);
+      }
+    }
+  });
+}

@@ -13,7 +13,7 @@
     <div id="toast-container" class="toast-container"></div>
 
     <header class="navbar">
-        <div class="navbar-brand">MyMarket</div>
+        <div class="navbar-brand"><i class="fa-solid fa-store"></i> MyMarket</div>
         <div class="search-bar">
             <input type="text" id="search-input" placeholder="Buscar productos por nombre...">
             <button id="search-btn"><i class="fa-solid fa-magnifying-glass"></i></button>
@@ -54,7 +54,7 @@
     <!-- Sidebar del Carrito -->
     <div class="cart-sidebar" id="cart-sidebar">
         <div class="cart-sidebar-header">
-            <h3>Tu Carrito</h3>
+            <h3><i class="fa-solid fa-bag-shopping"></i> Tu Carrito</h3>
             <button class="close-sidebar-btn" id="close-cart">&times;</button>
         </div>
         <div class="cart-sidebar-body">
@@ -73,7 +73,7 @@
     <div class="modal" id="login-modal" aria-hidden="true">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Iniciar sesión</h3>
+                <h3>Cuenta de Usuario</h3>
                 <button class="close-sidebar-btn" type="button" data-close-modal="login-modal">&times;</button>
             </div>
             <form id="login-form">
@@ -192,8 +192,8 @@
             </div>
             <form id="profile-form">
                 <div class="profile-avatar-container" style="text-align: center; margin-bottom: 15px;">
-                    <img id="profile-avatar-preview" src="https://via.placeholder.com/100" alt="Avatar" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #ccc;"><br>
-                    <span id="profile-online-badge" class="online-badge" style="display: inline-block; background: #2ecc71; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-top: 5px;"><i class="fa-solid fa-circle"></i> En línea</span>
+                    <img id="profile-avatar-preview" src="https://via.placeholder.com/100" alt="Avatar" style="width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0;"><br>
+                    <span id="profile-online-badge" class="online-badge" style="display: inline-block; background: #10b981; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; margin-top: 6px; font-weight: 600;"><i class="fa-solid fa-circle" style="font-size: 8px;"></i> En línea</span>
                 </div>
                 <div class="form-group">
                     <label for="profile-avatar-file">Cambiar foto de perfil</label>
@@ -244,7 +244,7 @@
                 </div>
                 <div class="form-group">
                     <label for="payment-address">Dirección de entrega</label>
-                    <textarea id="payment-address" required></textarea>
+                    <textarea id="payment-address" required rows="3"></textarea>
                 </div>
                 <div class="form-actions">
                     <button class="pay-btn" type="submit">Confirmar pedido</button>
