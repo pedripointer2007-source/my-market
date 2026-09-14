@@ -623,3 +623,30 @@ if (avatarFileInput) {
     }
   });
 }
+
+// ==========================================
+// ESCUCHAR CAMBIOS DE SESIÓN EN TIEMPO REAL
+// ==========================================
+supabaseClient.auth.onAuthStateChange(async (event, session) => {
+  currentUser = session?.user || null;
+
+  // 1. Actualizar visibilidad de botones en la barra de navegación
+  const loginBtn = document.getElementById('login-btn');
+  const profileBtn = document.getElementById('profile-btn');
+  const sellBtn = document.getElementById('sell-btn');
+
+  if (currentUser) {
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (profileBtn) profileBtn.classList.remove('hidden');
+    if (sellBtn) sellBtn.style.display = 'inline-flex';
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (profileBtn) profileBtn.classList.add('hidden');
+    if (sellBtn) sellBtn.style.display = 'none';
+  }
+
+  // 2. Re-renderizar los productos al instante para quitar/poner los botones de edición del dueño
+  if (typeof productsCache !== 'undefined' && productsCache.length > 0) {
+    renderizarProductos(productsCache);
+  }
+});
