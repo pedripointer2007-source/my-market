@@ -25,6 +25,9 @@
             <button class="login-btn hidden" id="logout-btn" aria-label="Cerrar sesión">
                 <i class="fa-solid fa-right-from-bracket"></i> <span>Salir</span>
             </button>
+            <button class="notification-trigger hidden" id="notifications-btn" aria-label="Notificaciones">
+                <i class="fa-solid fa-bell"></i><span class="notification-badge hidden" id="notifications-count">0</span>
+            </button>
             <button class="login-btn" id="login-btn" aria-label="Iniciar sesión">
                 <i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>
             </button>
@@ -258,6 +261,16 @@
                     <button class="secondary-btn" type="button" data-close-modal="payment-modal">Cancelar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="modal" id="notifications-modal" aria-hidden="true">
+        <div class="modal-content notifications-modal-content">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-bell"></i> Notificaciones</h3>
+                <button class="close-sidebar-btn" type="button" data-close-modal="notifications-modal">&times;</button>
+            </div>
+            <div id="notifications-list"><p>No tienes notificaciones.</p></div>
         </div>
     </div>
 

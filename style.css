@@ -621,3 +621,11 @@ body {
     text-decoration: none;
     font-weight: 700;
 }
+
+.notification-trigger { position: relative; border: 0; background: transparent; color: #fff; font-size: 1.15rem; cursor: pointer; padding: 8px; }
+.notification-badge { position: absolute; top: 0; right: 0; min-width: 18px; padding: 2px 5px; border-radius: 999px; background: #ef4444; color: #fff; font-size: .68rem; font-weight: 800; text-align: center; }
+.notifications-modal-content { max-width: 560px; }
+#notifications-list { display: grid; gap: 10px; max-height: 420px; overflow-y: auto; }
+.inbox-notification { display: grid; gap: 5px; padding: 13px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; font-size: .85rem; }
+.inbox-notification.unread { border-left: 4px solid #f59e0b; background: #fffbeb; }
+.inbox-notification strong { color: #0f172a; }

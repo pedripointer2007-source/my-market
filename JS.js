@@ -175,6 +175,7 @@ function actualizarSesion() {
     ? '<i class="fa-solid fa-right-from-bracket"></i> <span>Cerrar sesión</span>' 
     : '<i class="fa-solid fa-user"></i> <span>Iniciar sesión</span>';
   profileBtn.classList.toggle('hidden', !currentUser);
+  document.getElementById('notifications-btn')?.classList.toggle('hidden', !currentUser);
 }
 
 function renderizarProductos(productos = []) {
@@ -335,15 +336,35 @@ async function enviarPedidoAVendedores(event) {
     quantity: Number(item.qty || 1),
     total: Number(item.price || 0) * Number(item.qty || 1),
     whatsapp_url: crearEnlaceWhatsApp(buyerPhone, buyerName, item.title),
+    notification_type: 'seller_order',
     status: 'unread'
   }));
 
-  const { error } = await supabaseClient.from('notifications').insert(notifications);
+  const buyerNotifications = cartItems.map(item => ({
+    seller_id: item.seller_id,
+    buyer_id: currentUser.id,
+    buyer_name: buyerName,
+    buyer_phone: buyerPhone,
+    buyer_address: buyerAddress,
+    product_id: item.id,
+    product_title: item.title,
+    quantity: Number(item.qty || 1),
+    total: Number(item.price || 0) * Number(item.qty || 1),
+    whatsapp_url: crearEnlaceWhatsApp(item.seller_phone || item.phone, buyerName, item.title),
+    notification_type: 'buyer_confirmation',
+    status: 'unread'
+  }));
+
+  const { error } = await supabaseClient.from('notifications').insert([...notifications, ...buyerNotifications]);
   if (error) {
     console.error('Error enviando pedido a vendedores:', error);
     for (const item of cartItems) await devolverUnidadAlStock(item.id, item.qty);
     await cargarProductos();
-    alert(`No se pudo enviar el pedido: ${error.message}`);
+    if (error.code === 'PGRST205') {
+      alert('Falta crear la tabla notifications en Supabase. Ejecuta el archivo notifications.sql incluido en el proyecto y vuelve a intentarlo.');
+    } else {
+      alert(`No se pudo enviar el pedido: ${error.message}`);
+    }
     return;
   }
 
@@ -374,6 +395,36 @@ async function cargarNotificacionesVendedor() {
       <span>Dirección: ${escapeHtml(notification.buyer_address)}</span>
       ${notification.whatsapp_url ? `<a class="notification-whatsapp" href="${escapeHtml(notification.whatsapp_url)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> Contactar por WhatsApp</a>` : ''}
     </article>`).join('') : '<p>No hay pedidos recibidos.</p>';
+}
+
+async function cargarBandejaNotificaciones() {
+  if (!currentUser) return;
+  const list = document.getElementById('notifications-list');
+  const { data, error } = await supabaseClient.from('notifications').select('*').or(`seller_id.eq.${currentUser.id},buyer_id.eq.${currentUser.id}`).order('created_at', { ascending: false });
+  if (error) {
+    list.innerHTML = '<p>No se pudieron cargar las notificaciones.</p>';
+    return;
+  }
+  list.innerHTML = data?.length ? data.map(notification => {
+    const isBuyer = notification.buyer_id === currentUser.id && notification.notification_type === 'buyer_confirmation';
+    const whatsapp = notification.whatsapp_url ? `<a class="notification-whatsapp" href="${escapeHtml(notification.whatsapp_url)}" target="_blank" rel="noopener"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>` : '';
+    return `<article class="inbox-notification ${notification.status === 'unread' ? 'unread' : ''}"><strong>${isBuyer ? 'Pedido enviado' : 'Nuevo pedido recibido'}</strong><span>${escapeHtml(notification.product_title)} • ${notification.quantity} unidad(es)</span><span>Total: ${Number(notification.total || 0).toFixed(2)}</span>${isBuyer ? whatsapp : `<span>Comprador: ${escapeHtml(notification.buyer_name)}</span><span>Teléfono: ${escapeHtml(notification.buyer_phone)}</span><span>Dirección: ${escapeHtml(notification.buyer_address)}</span>${whatsapp}`}</article>`;
+  }).join('') : '<p>No tienes notificaciones.</p>';
+  const unread = (data || []).filter(item => item.status === 'unread');
+  if (unread.length) await supabaseClient.from('notifications').update({ status: 'read' }).in('id', unread.map(item => item.id));
+  actualizarContadorNotificaciones(data || []);
+}
+
+async function actualizarContadorNotificaciones(notifications = null) {
+  if (!currentUser) return;
+  let rows = notifications;
+  if (!rows) {
+    const result = await supabaseClient.from('notifications').select('id,status').or(`seller_id.eq.${currentUser.id},buyer_id.eq.${currentUser.id}`);
+    rows = result.data || [];
+  }
+  const count = rows.filter(item => item.status === 'unread').length;
+  const badge = document.getElementById('notifications-count');
+  if (badge) { badge.textContent = count; badge.classList.toggle('hidden', count === 0); }
 }
 
 function quitarDelCarrito(id) {
@@ -532,6 +583,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     mostrarModal('payment-modal');
   });
   document.getElementById('payment-form')?.addEventListener('submit', enviarPedidoAVendedores);
+  document.getElementById('notifications-btn')?.addEventListener('click', async () => {
+    await cargarBandejaNotificaciones();
+    mostrarModal('notifications-modal');
+  });
+  await actualizarContadorNotificaciones();
 
   document.getElementById('register-form')?.addEventListener('submit', async event => {
     event.preventDefault();
@@ -810,6 +866,7 @@ if (avatarFileInput) {
 supabaseClient.auth.onAuthStateChange((_event, session) => {
   currentUser = session?.user || null;
   actualizarSesion();
+  actualizarContadorNotificaciones();
   if (typeof productsCache !== 'undefined') renderizarProductos(productsCache);
 });
 
