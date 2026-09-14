@@ -930,9 +930,21 @@ document.getElementById('sell-form')?.addEventListener('submit', event => {
   event.preventDefault();
   const productId = document.getElementById('product-id-hidden').value;
   
-  const rawPhone = document.getElementById('profile-phone').value.trim();
-// Si el usuario no puso el +, puedes concatenarle el código de país correspondiente (ej: +505)
-const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `+505${rawPhone}`;
+  // Capturar el valor que ingresó el usuario
+  const inputPhoneVal = document.getElementById('product-phone').value.trim();
+  
+  // Extraer únicamente los dígitos para validar cuántos son
+  const onlyDigits = inputPhoneVal.replace(/\D/g, '');
+
+  // Validar que tenga exactamente 8 dígitos (número local de Nicaragua)
+  if (onlyDigits.length !== 8) {
+    alert('Por favor, ingresa un número de teléfono válido de 8 dígitos (ej. 83696834).');
+    document.getElementById('product-phone').focus();
+    return; // Detiene el envío si el número está incompleto
+  }
+
+  // Formato estricto sin espacios: +505 seguido de los 8 dígitos juntos
+  const finalPhone = `+505${onlyDigits}`;
 
   const rawPriceValue = document.getElementById('product-price').value;
   const numericPrice = limpiarPrecioANumero(rawPriceValue);
@@ -946,8 +958,8 @@ const cleanPhone = rawPhone.startsWith('+') ? rawPhone : `+505${rawPhone}`;
     status: document.getElementById('product-status').value,
     condition_type: document.getElementById('product-condition').value,
     location: document.getElementById('product-location').value.trim(),
-    phone: cleanPhone,
-    seller_phone: cleanPhone
+    phone: finalPhone,
+    seller_phone: finalPhone
   }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
 });
 
