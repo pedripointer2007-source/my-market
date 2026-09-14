@@ -567,3 +567,14 @@ body {
 }
 
 .hidden { display: none; }
+/* Asegurar visibilidad del texto en botones secundarios o deshabilitados dentro de las tarjetas */
+.product-card .btn-secondary,
+.product-card button:not(.btn-primary):not(.pay-btn) {
+    color: #0f172a; /* Texto oscuro para contrastar con el fondo claro */
+    background: rgba(241, 245, 249, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.product-card .btn-secondary:hover {
+    background: #ffffff;
+}
