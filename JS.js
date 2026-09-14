@@ -694,3 +694,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+function agregarAlCarrito(productId) {
+    // 1. Buscar el producto en tu lista/base de datos local
+    const producto = productos.find(p => p.id === productId);
+
+    if (!producto || producto.stock <= 0) {
+        mostrarToast("Producto sin stock o no encontrado");
+        return;
+    }
+
+    // 2. Verificar si ya está en el carrito
+    let itemEnCarrito = carrito.find(item => item.id === productId);
+
+    if (itemEnCarrito) {
+        if (itemEnCarrito.cantidad < producto.stock) {
+            itemEnCarrito.cantidad++;
+        } else {
+            mostrarToast("No hay más stock disponible");
+            return;
+        }
+    } else {
+        // Agregar nuevo con cantidad 1
+        carrito.push({ ...producto, cantidad: 1 });
+    }
+
+    // 3. Descontar stock temporalmente (opcional según tu lógica)
+    // producto.stock--; 
+
+    // 4. ¡Crucial! Llamar a las funciones que actualizan la interfaz
+    actualizarCarritoUI();
+}
+function actualizarCarritoUI() {
+    const cartBadge = document.querySelector('.cart-badge');
+    const cartBody = document.querySelector('.cart-sidebar-body');
+    const totalPriceEl = document.querySelector('.total-price'); // Ajusta según tu selector
+
+    // Calcular total de items
+    const totalItems = carrito.reduce((acc, item) => acc + item.cantidad, 0);
+    
+    // Actualizar contador numérico
+    if (cartBadge) {
+        cartBadge.textContent = totalItems;
+        // Ocultar si está en 0, mostrar si hay más
+        cartBadge.style.display = totalItems > 0 ? 'inline-block' : 'none';
+    }
+
+    // Renderizar los elementos dentro del sidebar del carrito
+    if (cartBody) {
+        cartBody.innerHTML = '';
+        if (carrito.length === 0) {
+            cartBody.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Tu carrito está vacío</p>';
+        } else {
+            carrito.forEach(item => {
+                cartBody.innerHTML += `
+                    <div class="cart-item" style="display: flex; justify-content: space-between; margin-bottom: 15px; align-items: center;">
+                        <div>
+                            <h4 style="font-size: 0.9rem; color: white;">${item.nombre}</h4>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">NIO ${item.precio} x ${item.cantidad}</span>
+                        </div>
+                        <button onclick="eliminarDelCarrito(${item.id})" style="background:none; border:none; color: var(--error); cursor:pointer;">X</button>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    // Actualizar precio total a pagar
+    const costoTotal = carrito.reduce((acc, item) => acc + (item.precio * item.cantidad), 0);
+    if (totalPriceEl) {
+        totalPriceEl.textContent = `NIO ${costoTotal.toFixed(2)}`;
+    }
+}
