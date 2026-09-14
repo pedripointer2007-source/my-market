@@ -269,31 +269,32 @@ function actualizarCarritoUI() {
 
 function abrirWhatsApp(phone, buyerName, productTitle) {
   let rawPhone = String(phone || '').trim();
-  if (!rawPhone) {
-    alert('El vendedor no tiene un número de teléfono registrado.');
+
+  if (!rawPhone || rawPhone === 'undefined' || rawPhone === 'null' || rawPhone === '') {
+    alert('Este producto no tiene un número de WhatsApp registrado.');
     return;
   }
 
-  // Extraer únicamente los dígitos del número
+  // 1. Limpiar todo lo que no sea número (elimina espacios, guiones, paréntesis y el signo +)
   let digits = rawPhone.replace(/\D/g, '');
 
-  // Si tiene 8 dígitos (número local de Nicaragua), anteponer el código de país 505
+  // 2. Si tiene 8 dígitos (número local de Nicaragua), anteponer el código de país 505
   if (digits.length === 8) {
     digits = '505' + digits;
   }
 
-  const message = encodeURIComponent(`Hola, vi tu producto "${productTitle}" en MyMarket y estoy interesado.`);
-
-  // Detectar si es Android o un dispositivo móvil para usar el protocolo nativo si es necesario
-  const esAndroid = /Android/i.test(navigator.userAgent);
-
-  if (esAndroid) {
-    // Intento directo con el esquema de la aplicación nativa de WhatsApp en Android
-    window.location.href = `whatsapp://send?phone=${digits}&text=${message}`;
-  } else {
-    // Método universal para web / iPhone
-    window.open(`https://wa.me/${digits}?text=${message}`, '_blank');
+  if (digits.length < 8) {
+    alert('El número de teléfono del vendedor no es válido.');
+    return;
   }
+
+  const message = encodeURIComponent(`Hola ${buyerName || ''}, estoy interesado en tu producto "${productTitle}" publicado en MyMarket.`);
+
+  // 3. Usar el formato universal que abre la app en Android y WhatsApp Web en PC de forma segura
+  const whatsappUrl = `https://api.whatsapp.com/send?phone=${digits}&text=${message}`;
+  
+  // Forzar apertura en nueva pestaña/app
+  window.open(whatsappUrl, '_blank');
 }
 
 async function enviarPedidoAVendedores(event) {
