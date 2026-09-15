@@ -1092,3 +1092,43 @@ function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
   // Usar api.whatsapp.com que suele ser más estable en Android para evitar bloqueos de formato en wa.me
   return `https://api.whatsapp.com/send?phone=${digits}&text=${message}`;
 }
+
+// ==========================================
+// FILTRADO POR BARRA DE BÚSQUEDA
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+  // Busca el input de búsqueda de la barra superior (ajusta el selector si tu input tiene un id o clase específica)
+  const searchInput = document.querySelector('header input[type="text"], .search-bar input, input[placeholder*="Buscar"]');
+  const searchButton = document.querySelector('header button, .search-btn');
+
+  if (searchInput) {
+    function realizarBusqueda() {
+      const termino = searchInput.value.toLowerCase().trim();
+      
+      if (!termino) {
+        renderizarProductos(productsCache);
+        return;
+      }
+
+      // Filtrar productos cuyo título o descripción coincidan con lo que escribiste
+      const productosFiltrados = productsCache.filter(p => {
+        const titulo = (p.title || '').toLowerCase();
+        const descripcion = (p.description || '').toLowerCase();
+        return titulo.includes(termino) || descripcion.includes(termino);
+      });
+
+      renderizarProductos(productosFiltrados);
+    }
+
+    // Filtrar mientras escribes
+    searchInput.addEventListener('input', realizarBusqueda);
+
+    // O filtrar si hacen clic en el botón de la lupa
+    if (searchButton) {
+      searchButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        realizarBusqueda();
+      });
+    }
+  }
+});
