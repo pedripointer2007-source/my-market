@@ -641,21 +641,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('sell-form')?.addEventListener('submit', event => {
-    event.preventDefault();
-    const productId = document.getElementById('product-id-hidden').value;
-    publicarProducto({
-      title: document.getElementById('product-title').value.trim(),
-      category_id: Number(document.getElementById('product-category').value),
-      price: Number(document.getElementById('product-price').value),
-      currency: document.getElementById('product-currency').value,
-      stock: Number(document.getElementById('product-stock').value),
-      status: document.getElementById('product-status').value,
-      condition_type: document.getElementById('product-condition').value,
-      location: document.getElementById('product-location').value.trim(),
-      phone: document.getElementById('product-phone').value.trim(),
-      seller_phone: document.getElementById('product-phone').value.trim()
-    }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
-  });
+  event.preventDefault();
+  const productId = document.getElementById('product-id-hidden').value;
+  
+  // 1. Obtener el código de país seleccionado (o usar +505 por defecto si no existe el selector)
+  const countryCodeSelect = document.getElementById('country-code-select');
+  const countryCode = countryCodeSelect ? countryCodeSelect.value : '+505';
+  
+  // 2. Obtener únicamente los 8 dígitos que escribió el usuario en el campo de texto del teléfono
+  const inputPhoneVal = document.getElementById('product-phone').value.trim();
+  const onlyDigits = inputPhoneVal.replace(/\D/g, '');
+
+  // 3. Validación estricta para asegurar que sean exactamente 8 dígitos
+  if (onlyDigits.length !== 8) {
+    alert('Por favor, ingresa un número de teléfono válido de 8 dígitos.');
+    document.getElementById('product-phone').focus();
+    return;
+  }
+
+  // 4. Unir el código de país (ej. +505) con los 8 dígitos juntos (ej. +50583696834)
+  const finalPhone = `${countryCode}${onlyDigits}`;
+
+  const rawPriceValue = document.getElementById('product-price').value;
+  const numericPrice = limpiarPrecioANumero(rawPriceValue);
+
+  publicarProducto({
+    title: document.getElementById('product-title').value.trim(),
+    category_id: Number(document.getElementById('product-category').value),
+    price: numericPrice,
+    currency: document.getElementById('product-currency').value,
+    stock: Number(document.getElementById('product-stock').value),
+    status: document.getElementById('product-status').value,
+    condition_type: document.getElementById('product-condition').value,
+    location: document.getElementById('product-location').value.trim(),
+    phone: finalPhone,
+    seller_phone: finalPhone
+  }, document.getElementById('product-image').files[0], productId ? Number(productId) : null);
+});
 });
 
 // ==========================================
