@@ -1047,3 +1047,16 @@ async function eliminarNotificacion(notificationId, elementNode) {
         alert('No se pudo eliminar la notificación.');
     }
 }
+
+function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
+  let rawPhone = String(phone || '').trim();
+  if (!rawPhone) return '';
+
+  let digits = rawPhone.replace(/\D/g, '');
+  if (digits.length === 8) {
+    digits = '505' + digits;
+  }
+
+  const message = encodeURIComponent(`Hola ${buyerName || ''}, estoy interesado en tu producto "${productTitle}" publicado en MyMarket.`);
+  return `https://api.whatsapp.com/send?phone=${digits}&text=${message}`;
+}
