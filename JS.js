@@ -1052,11 +1052,21 @@ function crearEnlaceWhatsApp(phone, buyerName, productTitle) {
   let rawPhone = String(phone || '').trim();
   if (!rawPhone) return '';
 
+  // Limpiar todo lo que no sean números
   let digits = rawPhone.replace(/\D/g, '');
+
+  // Si el número tiene 8 dígitos (ej. 83696834), le anteponemos el 505 de Nicaragua
   if (digits.length === 8) {
     digits = '505' + digits;
+  } 
+  // Si por error se guardó empezando con 57 u otro, lo corregimos si tiene la longitud de Nicaragua
+  else if (digits.startsWith('57') && digits.length > 10) {
+    // Si tenía un error previo de país, forzamos el 505 cortando los primeros dígitos si es necesario
+    digits = '505' + digits.slice(-8);
   }
 
   const message = encodeURIComponent(`Hola ${buyerName || ''}, estoy interesado en tu producto "${productTitle}" publicado en MyMarket.`);
+  
+  // Usar api.whatsapp.com que suele ser más estable en Android para evitar bloqueos de formato en wa.me
   return `https://api.whatsapp.com/send?phone=${digits}&text=${message}`;
 }
